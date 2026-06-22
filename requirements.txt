@@ -1,0 +1,6 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+sqlmodel==0.0.19
+scapy==2.5.0
+psutil==5.9.8
+manuf==1.1.5

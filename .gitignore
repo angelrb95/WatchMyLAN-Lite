@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+.pytest_cache/
+.mypy_cache/
+data/
+backups/
+caddy-data/
+caddy-config/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+Thumbs.db

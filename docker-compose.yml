@@ -1,0 +1,49 @@
+services:
+  watchmylan-lite:
+    build: .
+    container_name: watchmylan-lite
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      APP_PORT: "${APP_PORT:-8088}"
+      SCAN_INTERVAL_SECONDS: "${SCAN_INTERVAL_SECONDS:-120}"
+      OFFLINE_AFTER_MISSES: "${OFFLINE_AFTER_MISSES:-3}"
+      ARP_TIMEOUT_SECONDS: "${ARP_TIMEOUT_SECONDS:-2}"
+      ARP_RETRIES: "${ARP_RETRIES:-1}"
+      ARP_PASSES: "${ARP_PASSES:-3}"
+      INCLUDE_KERNEL_NEIGHBORS: "${INCLUDE_KERNEL_NEIGHBORS:-true}"
+      ENABLE_PING_SWEEP: "${ENABLE_PING_SWEEP:-true}"
+      PING_TIMEOUT_SECONDS: "${PING_TIMEOUT_SECONDS:-1}"
+      PING_WORKERS: "${PING_WORKERS:-128}"
+      TELEGRAM_URL: "${TELEGRAM_URL:-}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      ALERT_EMAIL_TO: "${ALERT_EMAIL_TO:-}"
+      SMTP_TLS: "${SMTP_TLS:-true}"
+      DATA_DIR: "/data"
+    command: ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${APP_PORT:-8088}"]
+    volumes:
+      - ./data:/data
+
+  watchmylan-https:
+    image: caddy:2.8-alpine
+    container_name: watchmylan-https
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      WATCHMYLAN_HOST: "${WATCHMYLAN_HOST:-localhost}"
+      APP_PORT: "${APP_PORT:-8088}"
+      HTTPS_PORT: "${HTTPS_PORT:-8443}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-data:/data
+      - ./caddy-config:/config
+
+# network_mode: host es obligatorio para que Scapy vea la interfaz LAN real.
+# En modo bridge Docker solo veria la red privada del contenedor.

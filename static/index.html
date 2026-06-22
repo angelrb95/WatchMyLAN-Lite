@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WatchMyLAN Lite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { darkMode: "class" };
+    </script>
+  </head>
+  <body class="min-h-screen bg-zinc-50 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-zinc-50">
+    <main class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+      <header class="flex flex-col gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight">WatchMyLAN Lite</h1>
+          <p id="configLine" class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Monitor de dispositivos conectados a la red local</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            id="settingsButton"
+            class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            type="button"
+          >
+            Configuracion
+          </button>
+          <a
+            class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            href="/api/devices.csv"
+          >
+            Exportar CSV
+          </a>
+          <button
+            id="themeButton"
+            class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            type="button"
+          >
+            Modo oscuro
+          </button>
+          <button
+            id="scanButton"
+            class="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-70"
+            type="button"
+          >
+            <span id="scanSpinner" class="hidden h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
+            Escanear ahora
+          </button>
+        </div>
+      </header>
+
+      <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">Desconocidos</p>
+          <p id="unknownCount" class="mt-2 text-3xl font-semibold text-amber-600">0</p>
+        </div>
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">Online</p>
+          <p id="onlineCount" class="mt-2 text-3xl font-semibold">0</p>
+        </div>
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">Offline</p>
+          <p id="offlineCount" class="mt-2 text-3xl font-semibold">0</p>
+        </div>
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">Ultima actualizacion</p>
+          <p id="lastRefresh" class="mt-2 text-base font-medium">-</p>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex w-full flex-wrap gap-2">
+          <input id="searchInput" class="h-10 min-w-52 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-emerald-500 dark:border-zinc-700 dark:bg-zinc-900" placeholder="Buscar por IP, MAC, nombre o notas" />
+          <select id="statusFilter" class="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <option value="all">Todos</option><option value="online">Online</option><option value="offline">Offline</option><option value="unknown">Desconocidos</option><option value="favorite">Favoritos</option>
+          </select>
+          <select id="typeFilter" class="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <option value="all">Todos los tipos</option><option>Router</option><option>Camara</option><option>Servidor</option><option>Entretenimiento</option><option>Movil</option><option>Ordenador</option><option>IoT</option><option>Otro</option>
+          </select>
+          <button id="analyticsButton" class="h-10 rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900" type="button">Estadisticas</button>
+        </div>
+        <p id="statusLine" class="text-sm text-zinc-500 dark:text-zinc-400"></p>
+      </section>
+
+      <section class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div>
+          <table class="deviceTable w-full table-fixed divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
+            <colgroup>
+              <col class="colStatus w-[12%]" /><col class="colDevice w-[27%]" /><col class="colNetwork w-[19%]" />
+              <col class="colSeen w-[15%]" /><col class="colConnected w-[13%]" /><col class="colActions w-[14%]" />
+            </colgroup>
+            <thead class="bg-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+              <tr>
+                <th class="px-3 py-3"><button class="sortButton" data-sort="status" type="button">Estado</button></th>
+                <th class="px-3 py-3"><button class="sortButton" data-sort="custom_name" type="button">Dispositivo</button></th>
+                <th class="px-3 py-3"><button class="sortButton" data-sort="ip" type="button">Red</button></th>
+                <th class="px-3 py-3"><button class="sortButton" data-sort="last_seen" type="button">Ultima vez</button></th>
+                <th class="px-3 py-3">Conectado</th>
+                <th class="px-3 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="deviceRows" class="divide-y divide-zinc-100 dark:divide-zinc-800"></tbody>
+          </table>
+        </div>
+        <div id="emptyState" class="hidden px-4 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
+          No hay dispositivos registrados todavia.
+        </div>
+      </section>
+    </main>
+
+    <dialog id="settingsDialog" class="m-auto w-[min(920px,calc(100%-2rem))] rounded-lg border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
+      <form id="settingsForm" class="max-h-[90vh] overflow-y-auto">
+        <header class="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <h2 class="text-lg font-semibold">Configuracion</h2>
+          <button id="closeSettings" class="h-9 w-9 rounded-md border border-zinc-300 text-xl hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900" type="button" aria-label="Cerrar">&times;</button>
+        </header>
+
+        <div class="grid gap-7 p-5 lg:grid-cols-2">
+          <fieldset class="grid grid-cols-2 gap-4">
+            <legend class="col-span-2 mb-3 text-sm font-semibold uppercase text-zinc-500">Escaneo</legend>
+            <label class="text-sm">Intervalo (segundos)<input name="scan_interval_seconds" type="number" min="30" max="86400" class="settingInput" /></label>
+            <label class="text-sm">Fallos para offline<input name="offline_after_misses" type="number" min="1" max="50" class="settingInput" /></label>
+            <label class="text-sm">Espera ARP (segundos)<input name="arp_timeout_seconds" type="number" min="0.2" max="30" step="0.1" class="settingInput" /></label>
+            <label class="text-sm">Reintentos ARP<input name="arp_retries" type="number" min="0" max="10" class="settingInput" /></label>
+            <label class="text-sm">Pasadas ARP<input name="arp_passes" type="number" min="1" max="10" class="settingInput" /></label>
+            <label class="text-sm">Espera ping (segundos)<input name="ping_timeout_seconds" type="number" min="1" max="10" class="settingInput" /></label>
+            <label class="text-sm">Hilos de ping<input name="ping_workers" type="number" min="1" max="512" class="settingInput" /></label>
+            <div class="flex flex-col justify-end gap-3 pb-1">
+              <label class="flex items-center gap-2 text-sm"><input name="enable_ping_sweep" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Barrido ping</label>
+              <label class="flex items-center gap-2 text-sm"><input name="include_kernel_neighbors" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Tabla de vecinos</label>
+            </div>
+          </fieldset>
+
+          <div class="grid gap-7">
+            <fieldset class="grid gap-3">
+              <legend class="mb-3 text-sm font-semibold uppercase text-zinc-500">Telegram</legend>
+              <label class="flex items-center gap-2 text-sm"><input name="telegram_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Activar avisos</label>
+              <label class="text-sm">URL de Telegram<input name="telegram_url" type="password" autocomplete="new-password" class="settingInput" /></label>
+            </fieldset>
+
+            <fieldset class="grid grid-cols-2 gap-3">
+              <legend class="col-span-2 mb-3 text-sm font-semibold uppercase text-zinc-500">Correo</legend>
+              <label class="col-span-2 flex items-center gap-2 text-sm"><input name="email_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Activar avisos</label>
+              <label class="text-sm">Servidor SMTP<input name="smtp_host" class="settingInput" /></label>
+              <label class="text-sm">Puerto<input name="smtp_port" type="number" min="1" max="65535" class="settingInput" /></label>
+              <label class="text-sm">Usuario<input name="smtp_username" autocomplete="username" class="settingInput" /></label>
+              <label class="text-sm">Contrasena<input name="smtp_password" type="password" autocomplete="new-password" class="settingInput" /></label>
+              <label class="text-sm">Remitente<input name="smtp_from" type="email" class="settingInput" /></label>
+              <label class="text-sm">Destinatario<input name="alert_email_to" type="email" class="settingInput" /></label>
+              <label class="col-span-2 flex items-center gap-2 text-sm"><input name="smtp_tls" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Usar STARTTLS</label>
+            </fieldset>
+          </div>
+
+          <div class="grid gap-7 lg:col-span-2 lg:grid-cols-3">
+            <fieldset class="grid gap-3">
+              <legend class="mb-3 text-sm font-semibold uppercase text-zinc-500">Descubrimiento</legend>
+              <label class="flex items-center gap-2 text-sm"><input name="mdns_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> mDNS</label>
+              <label class="flex items-center gap-2 text-sm"><input name="ssdp_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> SSDP</label>
+              <label class="flex items-center gap-2 text-sm"><input name="netbios_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> NetBIOS</label>
+              <label class="text-sm">Subredes adicionales<input name="extra_networks" placeholder="192.168.2.0/24, 10.0.0.0/24" class="settingInput" /></label>
+            </fieldset>
+            <fieldset class="grid gap-3">
+              <legend class="mb-3 text-sm font-semibold uppercase text-zinc-500">Integraciones y servicios</legend>
+              <label class="flex items-center gap-2 text-sm"><input name="webhook_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Webhook / Home Assistant</label>
+              <label class="text-sm">URL del webhook<input name="webhook_url" type="password" class="settingInput" /></label>
+              <label class="flex items-center gap-2 text-sm"><input name="port_scan_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Explorar servicios TCP</label>
+              <label class="text-sm">Puertos<input name="port_scan_ports" class="settingInput" /></label>
+            </fieldset>
+            <fieldset class="grid gap-3">
+              <legend class="mb-3 text-sm font-semibold uppercase text-zinc-500">Seguridad y copias</legend>
+              <label class="flex items-center gap-2 text-sm"><input name="auth_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Autenticacion</label>
+              <label class="text-sm">Usuario<input name="auth_username" autocomplete="username" class="settingInput" /></label>
+              <label class="text-sm">Nueva contrasena<input name="auth_password" type="password" autocomplete="new-password" class="settingInput" /></label>
+              <label class="flex items-center gap-2 text-sm"><input name="backup_enabled" type="checkbox" class="h-4 w-4 accent-emerald-600" /> Copias automaticas</label>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="text-sm">Cada (horas)<input name="backup_interval_hours" type="number" min="1" max="720" class="settingInput" /></label>
+                <label class="text-sm">Conservar<input name="backup_retention" type="number" min="1" max="365" class="settingInput" /></label>
+              </div>
+              <label class="text-sm">Conservar metricas (dias)<input name="metrics_retention_days" type="number" min="1" max="365" class="settingInput" /></label>
+              <button id="backupButton" class="h-10 rounded-md border border-zinc-300 px-3 text-sm font-medium dark:border-zinc-700" type="button">Crear copia ahora</button>
+            </fieldset>
+          </div>
+        </div>
+
+        <footer class="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <button id="agentsButton" class="h-10 rounded-md border border-zinc-300 px-4 text-sm font-medium dark:border-zinc-700" type="button">Agentes VLAN</button>
+          <button id="testAlertsButton" class="h-10 rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900" type="button">Probar avisos</button>
+          <button class="h-10 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-500" type="submit">Guardar cambios</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog id="historyDialog" class="m-auto w-[min(680px,calc(100%-2rem))] rounded-lg border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
+      <header class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+        <div><h2 class="text-lg font-semibold">Historial de conexion</h2><p id="historyDevice" class="text-sm text-zinc-500"></p></div>
+        <button id="closeHistory" class="h-9 w-9 rounded-md border border-zinc-300 text-xl dark:border-zinc-700" type="button" aria-label="Cerrar">&times;</button>
+      </header>
+      <div id="historyRows" class="max-h-[65vh] divide-y divide-zinc-200 overflow-y-auto dark:divide-zinc-800"></div>
+    </dialog>
+    <dialog id="analyticsDialog" class="m-auto w-[min(1050px,calc(100%-2rem))] rounded-lg border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
+      <header class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"><h2 class="text-lg font-semibold">Salud y disponibilidad</h2><div class="flex items-center gap-2"><select id="analyticsRange" class="h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"><option value="24">24 horas</option><option value="168" selected>7 dias</option><option value="720">30 dias</option></select><button id="closeAnalytics" class="h-9 w-9 rounded-md border border-zinc-300 text-xl dark:border-zinc-700" type="button" aria-label="Cerrar">&times;</button></div></header>
+      <div class="max-h-[82vh] overflow-y-auto">
+        <section id="analyticsSummary" class="grid grid-cols-2 divide-x divide-zinc-200 border-b border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800 sm:grid-cols-3 lg:grid-cols-6"></section>
+        <section class="grid gap-6 border-b border-zinc-200 p-5 dark:border-zinc-800 lg:grid-cols-2"><div><h3 class="mb-3 text-sm font-semibold">Dispositivos online</h3><canvas id="availabilityChart" class="h-56 w-full"></canvas></div><div><h3 class="mb-3 text-sm font-semibold">Tiempo de respuesta</h3><canvas id="latencyChart" class="h-56 w-full"></canvas></div></section>
+        <section class="grid gap-6 p-5 lg:grid-cols-2"><div><h3 class="mb-3 text-sm font-semibold">Disponibilidad por dispositivo</h3><div id="uptimeRows" class="max-h-80 overflow-y-auto text-sm"></div></div><div><h3 class="mb-3 text-sm font-semibold">Cambios y desconexiones</h3><div id="instabilityRows" class="max-h-80 overflow-y-auto text-sm"></div></div></section>
+      </div>
+    </dialog>
+    <dialog id="servicesDialog" class="m-auto w-[min(560px,calc(100%-2rem))] rounded-lg border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
+      <header class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"><div><h2 class="text-lg font-semibold">Puertos y servicios</h2><p id="servicesDevice" class="text-sm text-zinc-500"></p></div><button id="closeServices" class="h-9 w-9 rounded-md border border-zinc-300 text-xl dark:border-zinc-700" type="button" aria-label="Cerrar">&times;</button></header>
+      <div id="servicesRows" class="max-h-[65vh] divide-y divide-zinc-200 overflow-y-auto p-5 dark:divide-zinc-800"></div>
+    </dialog>
+    <dialog id="agentsDialog" class="m-auto w-[min(680px,calc(100%-2rem))] rounded-lg border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
+      <header class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"><h2 class="text-lg font-semibold">Agentes para VLAN y subredes</h2><button id="closeAgents" class="h-9 w-9 rounded-md border border-zinc-300 text-xl dark:border-zinc-700" type="button" aria-label="Cerrar">&times;</button></header>
+      <form id="agentForm" class="grid gap-3 border-b border-zinc-200 p-5 dark:border-zinc-800 sm:grid-cols-[1fr_1fr_auto]"><input name="name" required placeholder="Nombre del agente" class="settingInput !mt-0" /><input name="subnet" placeholder="192.168.20.0/24" class="settingInput !mt-0" /><button class="h-10 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white" type="submit">Crear</button></form>
+      <div id="agentToken" class="hidden border-b border-amber-300 bg-amber-50 p-5 font-mono text-xs text-amber-950"></div>
+      <div id="agentRows" class="max-h-72 divide-y divide-zinc-200 overflow-y-auto dark:divide-zinc-800"></div>
+    </dialog>
+    <div id="toast" class="fixed bottom-4 right-4 hidden max-w-sm rounded-md bg-zinc-950 px-4 py-3 text-sm text-white shadow-lg dark:bg-white dark:text-zinc-950"></div>
+
+    <style>
+      .settingInput { margin-top: .35rem; height: 2.5rem; width: 100%; border-radius: .375rem; border: 1px solid rgb(212 212 216); background: white; padding: 0 .75rem; outline: none; }
+      .settingInput:focus { border-color: rgb(16 185 129); box-shadow: 0 0 0 2px rgb(16 185 129 / .2); }
+      .dark .settingInput { border-color: rgb(63 63 70); background: rgb(24 24 27); }
+      @media (max-width: 640px) {
+        .deviceTable th, .deviceTable td { padding-left: .25rem !important; padding-right: .25rem !important; }
+        .deviceTable .colStatus { width: 14%; }
+        .deviceTable .colDevice { width: 25%; }
+        .deviceTable .colNetwork { width: 18%; }
+        .deviceTable .colSeen { width: 13%; }
+        .deviceTable .colConnected { width: 10%; }
+        .deviceTable .colActions { width: 20%; }
+        .deviceTable .historyButton, .deviceTable .servicesButton, .deviceTable .wakeButton, .deviceTable .deleteDeviceButton { width: 100%; padding-left: .1rem; padding-right: .1rem; font-size: 9px; }
+      }
+    </style>
+
+    <script>
+      const rows = document.querySelector("#deviceRows");
+      const emptyState = document.querySelector("#emptyState");
+      const scanButton = document.querySelector("#scanButton");
+      const scanSpinner = document.querySelector("#scanSpinner");
+      const themeButton = document.querySelector("#themeButton");
+      const onlineCount = document.querySelector("#onlineCount");
+      const offlineCount = document.querySelector("#offlineCount");
+      const unknownCount = document.querySelector("#unknownCount");
+      const lastRefresh = document.querySelector("#lastRefresh");
+      const configLine = document.querySelector("#configLine");
+      const searchInput = document.querySelector("#searchInput");
+      const statusFilter = document.querySelector("#statusFilter");
+      const typeFilter = document.querySelector("#typeFilter");
+      const analyticsButton = document.querySelector("#analyticsButton");
+      const statusLine = document.querySelector("#statusLine");
+      const toast = document.querySelector("#toast");
+      const settingsButton = document.querySelector("#settingsButton");
+      const settingsDialog = document.querySelector("#settingsDialog");
+      const settingsForm = document.querySelector("#settingsForm");
+      const closeSettings = document.querySelector("#closeSettings");
+      const testAlertsButton = document.querySelector("#testAlertsButton");
+      const historyDialog = document.querySelector("#historyDialog");
+      const historyRows = document.querySelector("#historyRows");
+      const historyDevice = document.querySelector("#historyDevice");
+      const closeHistory = document.querySelector("#closeHistory");
+      const analyticsDialog = document.querySelector("#analyticsDialog");
+      const closeAnalytics = document.querySelector("#closeAnalytics");
+      const availabilityChart = document.querySelector("#availabilityChart");
+      const latencyChart = document.querySelector("#latencyChart");
+      const analyticsSummary = document.querySelector("#analyticsSummary");
+      const analyticsRange = document.querySelector("#analyticsRange");
+      const uptimeRows = document.querySelector("#uptimeRows");
+      const instabilityRows = document.querySelector("#instabilityRows");
+      const servicesDialog = document.querySelector("#servicesDialog");
+      const closeServices = document.querySelector("#closeServices");
+      const servicesRows = document.querySelector("#servicesRows");
+      const servicesDevice = document.querySelector("#servicesDevice");
+      const backupButton = document.querySelector("#backupButton");
+      const agentsButton = document.querySelector("#agentsButton");
+      const agentsDialog = document.querySelector("#agentsDialog");
+      const closeAgents = document.querySelector("#closeAgents");
+      const agentForm = document.querySelector("#agentForm");
+      const agentRows = document.querySelector("#agentRows");
+      const agentToken = document.querySelector("#agentToken");
+
+      let allDevices = [];
+      const allowedSortFields = new Set(["status", "custom_name", "ip", "last_seen"]);
+      let sortState = (() => {
+        try {
+          const saved = JSON.parse(localStorage.getItem("deviceSort"));
+          if (allowedSortFields.has(saved?.field) && ["asc", "desc"].includes(saved?.direction)) return saved;
+        } catch (_) {}
+        return { field: "status", direction: "asc" };
+      })();
+
+      function updateSortIndicators() {
+        document.querySelectorAll(".sortButton").forEach((button) => {
+          button.dataset.label ||= button.textContent.trim();
+          const active = button.dataset.sort === sortState.field;
+          button.textContent = `${button.dataset.label}${active ? (sortState.direction === "asc" ? " ↑" : " ↓") : ""}`;
+          button.closest("th").setAttribute("aria-sort", active ? (sortState.direction === "asc" ? "ascending" : "descending") : "none");
+        });
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        })[char]);
+      }
+
+      function formatDate(value) {
+        if (!value) return "-";
+        return new Intl.DateTimeFormat("es", {
+          dateStyle: "short",
+          timeStyle: "medium",
+        }).format(parseDate(value));
+      }
+
+      function parseDate(value) {
+        const text = String(value);
+        const hasTimezone = text.endsWith("Z") || /[+-]\d\d:\d\d$/.test(text);
+        return new Date(hasTimezone ? text : `${text}Z`);
+      }
+
+      function formatDuration(value) {
+        if (!value) return "-";
+        const seconds = Math.max(0, Math.floor((Date.now() - parseDate(value).getTime()) / 1000));
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        if (days) return `${days} d ${hours} h`;
+        if (hours) return `${hours} h ${minutes} min`;
+        return `${minutes} min`;
+      }
+
+      function ipValue(ip) {
+        return String(ip || "0.0.0.0").split(".").reduce((acc, part) => (acc * 256) + Number(part || 0), 0);
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.remove("hidden");
+        clearTimeout(showToast.timer);
+        showToast.timer = setTimeout(() => toast.classList.add("hidden"), 3500);
+      }
+
+      async function copyText(value) {
+        try {
+          await navigator.clipboard.writeText(value);
+        } catch (_) {
+          const input = document.createElement("textarea");
+          input.value = value;
+          input.style.position = "fixed";
+          input.style.opacity = "0";
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand("copy");
+          input.remove();
+        }
+        showToast("Copiado al portapapeles");
+      }
+
+      function statusBadge(status) {
+        const online = status === "Online";
+        const dot = online ? "bg-emerald-500" : "bg-zinc-400";
+        const text = online ? "text-emerald-700 dark:text-emerald-300" : "text-zinc-500 dark:text-zinc-400";
+        return `
+          <span class="inline-flex items-center gap-2 ${text}">
+            <span class="h-2.5 w-2.5 rounded-full ${dot}"></span>
+            ${status}
+          </span>
+        `;
+      }
+
+      async function showHistory(device) {
+        historyDevice.textContent = `${device.custom_name || device.hostname || device.ip} · ${device.mac}`;
+        historyRows.innerHTML = '<p class="p-5 text-sm text-zinc-500">Cargando...</p>';
+        historyDialog.showModal();
+        const response = await fetch(`/api/devices/${encodeURIComponent(device.mac)}/history`);
+        const events = await response.json();
+        const labels = { first_seen: "Primera deteccion", online: "Conexion", offline: "Desconexion", ip_changed: "Cambio de IP" };
+        historyRows.innerHTML = events.length ? events.map((event) => `
+          <div class="flex items-center justify-between gap-4 px-5 py-3 text-sm">
+            <div><p class="font-medium">${labels[event.event_type] || escapeHtml(event.event_type)}</p><p class="font-mono text-xs text-zinc-500">${escapeHtml(event.ip)}</p></div>
+            <time class="whitespace-nowrap text-zinc-500">${formatDate(event.occurred_at)}</time>
+          </div>
+        `).join("") : '<p class="p-5 text-sm text-zinc-500">Todavia no hay eventos registrados.</p>';
+      }
+
+      async function showServices(device) {
+        servicesDevice.textContent = `${device.custom_name || device.hostname || device.ip} · ${device.ip}`;
+        servicesRows.innerHTML = '<p class="text-sm text-zinc-500">Explorando...</p>';
+        servicesDialog.showModal();
+        const response = await fetch(`/api/devices/${encodeURIComponent(device.mac)}/services`, { method: "POST" });
+        if (!response.ok) {
+          servicesRows.innerHTML = '<p class="text-sm text-zinc-500">Activa la exploracion de servicios en Configuracion.</p>';
+          return;
+        }
+        const result = await response.json();
+        servicesRows.innerHTML = result.services.length ? result.services.map((service) => `<div class="flex justify-between py-2 text-sm"><span class="font-mono">TCP ${service.port}</span><span>${escapeHtml(service.service)}</span></div>`).join("") : '<p class="text-sm text-zinc-500">No se encontraron puertos configurados abiertos.</p>';
+      }
+
+      function drawLineChart(canvas, datasets) {
+        const ratio = window.devicePixelRatio || 1;
+        const width = Math.max(280, canvas.clientWidth);
+        const height = 224;
+        canvas.width = width * ratio;
+        canvas.height = height * ratio;
+        const context = canvas.getContext("2d");
+        context.scale(ratio, ratio);
+        context.clearRect(0, 0, width, height);
+        const allValues = datasets.flatMap((dataset) => dataset.values).filter((value) => Number.isFinite(value));
+        const maxValue = Math.max(1, ...allValues) * 1.1;
+        const gridColor = document.documentElement.classList.contains("dark") ? "#3f3f46" : "#e4e4e7";
+        const textColor = document.documentElement.classList.contains("dark") ? "#a1a1aa" : "#71717a";
+        context.font = "11px sans-serif"; context.fillStyle = textColor;
+        for (let line = 0; line <= 4; line++) {
+          const y = 12 + line * 46;
+          context.strokeStyle = gridColor; context.beginPath(); context.moveTo(38, y); context.lineTo(width - 8, y); context.stroke();
+          context.fillText(String(Math.round(maxValue * (4 - line) / 4)), 2, y + 4);
+        }
+        datasets.forEach((dataset) => {
+          if (!dataset.values.length) return;
+          context.strokeStyle = dataset.color; context.lineWidth = 2; context.beginPath();
+          dataset.values.forEach((value, index) => {
+            const x = 38 + (index / Math.max(1, dataset.values.length - 1)) * (width - 48);
+            const y = 196 - (value / maxValue) * 184;
+            index ? context.lineTo(x, y) : context.moveTo(x, y);
+          });
+          context.stroke();
+        });
+      }
+
+      async function showAnalytics() {
+        if (!analyticsDialog.open) analyticsDialog.showModal();
+        uptimeRows.innerHTML = '<p class="text-zinc-500">Cargando...</p>';
+        const response = await fetch(`/api/analytics?hours=${analyticsRange.value}`);
+        const data = await response.json();
+        const summary = data.summary;
+        const metrics = [
+          ["Disponibilidad", summary.network_availability_percent == null ? "-" : `${summary.network_availability_percent}%`],
+          ["Latencia media", summary.average_latency_ms == null ? "-" : `${summary.average_latency_ms} ms`],
+          ["Percentil 95", summary.p95_latency_ms == null ? "-" : `${summary.p95_latency_ms} ms`],
+          ["Mas rapido", summary.fastest_latency_ms == null ? "-" : `${summary.fastest_latency_ms} ms`],
+          ["Mas lento", summary.slowest_latency_ms == null ? "-" : `${summary.slowest_latency_ms} ms`],
+          ["Duracion escaneo", summary.average_scan_ms == null ? "-" : `${(summary.average_scan_ms / 1000).toFixed(1)} s`],
+        ];
+        analyticsSummary.innerHTML = metrics.map(([label, value]) => `<div class="p-4"><p class="text-xs text-zinc-500">${label}</p><p class="mt-1 text-xl font-semibold">${value}</p></div>`).join("");
+        drawLineChart(availabilityChart, [{ values: data.snapshots.map((item) => item.online), color: "#10b981" }]);
+        drawLineChart(latencyChart, [
+          { values: data.latency_series.map((item) => item.average_ms), color: "#10b981" },
+          { values: data.latency_series.map((item) => item.p95_ms), color: "#f59e0b" },
+        ]);
+        uptimeRows.innerHTML = data.uptime.slice(0, 40).map((item) => `<div class="mb-3"><div class="flex justify-between gap-3"><span class="truncate">${escapeHtml(item.name)}</span><span class="whitespace-nowrap"><strong>${item.uptime_percent}%</strong>${item.latency_ms == null ? "" : ` · ${item.latency_ms} ms`}</span></div><div class="mt-1 h-1.5 bg-zinc-200 dark:bg-zinc-800"><div class="h-full bg-emerald-500" style="width:${item.uptime_percent}%"></div></div></div>`).join("");
+        instabilityRows.innerHTML = data.instability.length ? data.instability.slice(0, 40).map((item) => `<div class="flex items-center justify-between border-b border-zinc-100 py-2 dark:border-zinc-800"><span class="truncate">${escapeHtml(item.name)}</span><span class="whitespace-nowrap text-xs text-zinc-500">${item.disconnects} cortes · ${item.ip_changes} cambios IP</span></div>`).join("") : '<p class="text-sm text-zinc-500">Sin cortes ni cambios de IP en este periodo.</p>';
+      }
+
+      function sortDevices(devices) {
+        const direction = sortState.direction === "asc" ? 1 : -1;
+        return [...devices].sort((left, right) => {
+          if (sortState.field === "ip") {
+            return (ipValue(left.ip) - ipValue(right.ip)) * direction;
+          }
+          if (sortState.field === "last_seen") {
+            return (parseDate(left.last_seen) - parseDate(right.last_seen)) * direction;
+          }
+          if (sortState.field === "status") {
+            const rank = { Online: 0, Offline: 1 };
+            return ((rank[left.status] ?? 2) - (rank[right.status] ?? 2)) * direction;
+          }
+          return String(left[sortState.field] || "").localeCompare(String(right[sortState.field] || "")) * direction;
+        });
+      }
+
+      function visibleDevices() {
+        const query = searchInput.value.trim().toLowerCase();
+        let filtered = query
+          ? allDevices.filter((device) => [
+              device.status,
+              device.ip,
+              device.mac,
+              device.hostname,
+              device.custom_name,
+              device.notes,
+            ].some((value) => String(value || "").toLowerCase().includes(query)))
+          : allDevices;
+        if (statusFilter.value === "online") filtered = filtered.filter((device) => device.status === "Online");
+        if (statusFilter.value === "offline") filtered = filtered.filter((device) => device.status === "Offline");
+        if (statusFilter.value === "unknown") filtered = filtered.filter((device) => !device.known);
+        if (statusFilter.value === "favorite") filtered = filtered.filter((device) => device.favorite);
+        if (typeFilter.value !== "all") filtered = filtered.filter((device) => device.device_type === typeFilter.value);
+        return sortDevices(filtered);
+      }
+
+      async function saveField(mac, field, value) {
+        const response = await fetch(`/api/devices/${encodeURIComponent(mac)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: value }),
+        });
+        if (!response.ok) throw new Error("No se pudo guardar");
+      }
+
+      function editableInput(device, field, placeholder) {
+        const value = device[field] || "";
+        return `
+          <input
+            class="min-w-0 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950"
+            data-mac="${escapeHtml(device.mac)}"
+            data-field="${field}"
+            value="${escapeHtml(value)}"
+            placeholder="${placeholder}"
+          />
+        `;
+      }
+
+      function deviceTypeSelect(device) {
+        const types = ["Router", "Camara", "Servidor", "Entretenimiento", "Movil", "Ordenador", "IoT", "Otro"];
+        return `<select class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" data-mac="${escapeHtml(device.mac)}" data-field="device_type">${types.map((type) => `<option ${device.device_type === type ? "selected" : ""}>${type}</option>`).join("")}</select>`;
+      }
+
+      function renderDevices(devices) {
+        const visible = visibleDevices();
+        rows.innerHTML = devices.map((device) => {
+          const networkName = device.hostname || device.custom_name || "Sin nombre";
+          return `
+            <tr class="align-top hover:bg-zinc-50 dark:hover:bg-zinc-950/70">
+              <td class="px-3 py-3">
+                <div class="flex items-start justify-between gap-1">${statusBadge(device.status)}<button class="favoriteButton text-lg ${device.favorite ? "text-amber-500" : "text-zinc-300"}" data-mac="${escapeHtml(device.mac)}" type="button" title="Favorito">★</button></div>
+                <label class="mt-2 flex items-center gap-1.5 text-xs text-zinc-500">
+                  <input class="knownCheckbox h-4 w-4 accent-emerald-600" data-mac="${escapeHtml(device.mac)}" type="checkbox" ${device.known ? "checked" : ""} /> Conocido
+                </label>
+              </td>
+              <td class="min-w-0 px-3 py-3">
+                ${editableInput(device, "custom_name", "Alias")}
+                <p class="mt-1 truncate text-xs text-zinc-500" title="${escapeHtml(networkName)}">Red: ${escapeHtml(networkName)}</p>
+                ${deviceTypeSelect(device)}
+                <div class="mt-1">${editableInput(device, "notes", "Notas")}</div>
+              </td>
+              <td class="px-3 py-3">
+                <div class="border-l-2 border-emerald-500 pl-2">
+                  <p class="text-[10px] font-semibold uppercase text-zinc-500">IP</p>
+                  <div class="flex items-center gap-1">
+                    <a class="break-all font-mono text-base font-bold text-zinc-950 hover:text-emerald-700 hover:underline dark:text-white dark:hover:text-emerald-400" href="http://${escapeHtml(device.ip)}" target="_blank" rel="noreferrer">${escapeHtml(device.ip)}</a>
+                    <button class="copyButton text-base text-zinc-500 hover:text-emerald-600" data-copy="${escapeHtml(device.ip)}" type="button" title="Copiar IP">⧉</button>
+                  </div>
+                  <p class="mt-2 text-[10px] font-semibold uppercase text-zinc-500">MAC</p>
+                  <div class="flex items-start gap-1">
+                    <span class="break-all font-mono text-xs font-semibold text-zinc-800 dark:text-zinc-200">${escapeHtml(device.mac)}</span>
+                    <button class="copyButton text-sm text-zinc-500 hover:text-emerald-600" data-copy="${escapeHtml(device.mac)}" type="button" title="Copiar MAC">⧉</button>
+                  </div>
+                </div>
+                <p class="mt-1 truncate text-[11px] text-zinc-500" title="${escapeHtml(device.vendor || "Fabricante desconocido")}">${escapeHtml(device.vendor || "Fabricante desconocido")}</p>
+              </td>
+              <td class="px-3 py-3 text-xs leading-5">${formatDate(device.last_seen)}</td>
+              <td class="px-3 py-3 text-xs leading-5">${device.status === "Online" ? formatDuration(device.connected_since) : "-"}${device.status === "Online" && device.latency_ms != null ? `<p class="mt-1 font-mono font-semibold text-emerald-700 dark:text-emerald-400">${device.latency_ms} ms</p>` : ""}</td>
+              <td class="px-3 py-3">
+                <div class="grid gap-2">
+                  <button class="historyButton rounded-md border border-zinc-300 px-2 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" data-mac="${escapeHtml(device.mac)}" type="button">Historial</button>
+                  <button class="servicesButton rounded-md border border-zinc-300 px-2 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" data-mac="${escapeHtml(device.mac)}" type="button">Servicios</button>
+                  <button class="wakeButton rounded-md border border-zinc-300 px-2 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" data-mac="${escapeHtml(device.mac)}" type="button">WOL</button>
+                  <button class="deleteDeviceButton rounded-md border border-red-300 px-2 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950" data-mac="${escapeHtml(device.mac)}" type="button">Eliminar</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("");
+
+        const online = allDevices.filter((device) => device.status === "Online").length;
+        onlineCount.textContent = online;
+        offlineCount.textContent = allDevices.length - online;
+        unknownCount.textContent = allDevices.filter((device) => !device.known).length;
+        statusLine.textContent = `${visible.length} visibles de ${allDevices.length} registrados`;
+        emptyState.classList.toggle("hidden", visible.length > 0);
+
+        document.querySelectorAll("[data-mac][data-field]").forEach((input) => {
+          input.addEventListener("change", async (event) => {
+            const target = event.currentTarget;
+            target.disabled = true;
+            try {
+              await saveField(target.dataset.mac, target.dataset.field, target.value);
+            } finally {
+              target.disabled = false;
+            }
+          });
+        });
+
+        document.querySelectorAll(".favoriteButton").forEach((button) => {
+          button.addEventListener("click", async (event) => {
+            const target = event.currentTarget;
+            const device = allDevices.find((item) => item.mac === target.dataset.mac);
+            if (!device) return;
+            device.favorite = !device.favorite;
+            await saveField(device.mac, "favorite", device.favorite);
+            renderDevices(visibleDevices());
+          });
+        });
+
+        document.querySelectorAll(".copyButton").forEach((button) => {
+          button.addEventListener("click", (event) => copyText(event.currentTarget.dataset.copy));
+        });
+
+        document.querySelectorAll(".wakeButton").forEach((button) => {
+          button.addEventListener("click", async (event) => {
+            const target = event.currentTarget;
+            target.disabled = true;
+            try {
+              const response = await fetch(`/api/devices/${encodeURIComponent(target.dataset.mac)}/wake`, { method: "POST" });
+              if (!response.ok) throw new Error("No se pudo enviar WOL");
+              showToast("Paquete Wake-on-LAN enviado");
+            } catch (error) {
+              showToast(error.message);
+            } finally {
+              target.disabled = false;
+            }
+          });
+        });
+
+        document.querySelectorAll(".knownCheckbox").forEach((checkbox) => {
+          checkbox.addEventListener("change", async (event) => {
+            const target = event.currentTarget;
+            await saveField(target.dataset.mac, "known", target.checked);
+            const device = allDevices.find((item) => item.mac === target.dataset.mac);
+            if (device) device.known = target.checked;
+            unknownCount.textContent = allDevices.filter((item) => !item.known).length;
+          });
+        });
+
+        document.querySelectorAll(".historyButton").forEach((button) => {
+          button.addEventListener("click", (event) => {
+            const device = allDevices.find((item) => item.mac === event.currentTarget.dataset.mac);
+            if (device) showHistory(device);
+          });
+        });
+
+        document.querySelectorAll(".servicesButton").forEach((button) => {
+          button.addEventListener("click", (event) => {
+            const device = allDevices.find((item) => item.mac === event.currentTarget.dataset.mac);
+            if (device) showServices(device);
+          });
+        });
+
+        document.querySelectorAll(".deleteDeviceButton").forEach((button) => {
+          button.addEventListener("click", async (event) => {
+            const mac = event.currentTarget.dataset.mac;
+            const device = allDevices.find((item) => item.mac === mac);
+            const name = device?.custom_name || device?.hostname || device?.ip || mac;
+            if (!window.confirm(`Eliminar ${name} y todo su historial?`)) return;
+            const response = await fetch(`/api/devices/${encodeURIComponent(mac)}`, { method: "DELETE" });
+            if (!response.ok) return showToast("No se pudo eliminar el dispositivo");
+            allDevices = allDevices.filter((item) => item.mac !== mac);
+            renderDevices(visibleDevices());
+            showToast("Dispositivo eliminado");
+          });
+        });
+      }
+
+      async function loadDevices() {
+        const response = await fetch("/api/devices");
+        allDevices = await response.json();
+        renderDevices(visibleDevices());
+        lastRefresh.textContent = formatDate(new Date().toISOString());
+      }
+
+      async function loadConfig() {
+        const response = await fetch("/api/config");
+        const config = await response.json();
+        const minutes = Math.round(config.scan_interval_seconds / 60);
+        const alerts = [
+          config.telegram_enabled ? "Telegram activo" : "Telegram inactivo",
+          config.email_enabled ? "mail activo" : "mail inactivo",
+        ].join(" · ");
+        configLine.textContent = `Escaneo automatico cada ${minutes} min · ${alerts}`;
+      }
+
+      async function openSettings() {
+        const response = await fetch("/api/settings");
+        const settings = await response.json();
+        Object.entries(settings).forEach(([name, value]) => {
+          const input = settingsForm.elements.namedItem(name);
+          if (!input) return;
+          if (input.type === "checkbox") input.checked = Boolean(value);
+          else input.value = value ?? "";
+        });
+        settingsForm.elements.telegram_url.placeholder = settings.telegram_configured ? "Configurado (dejar vacio para conservar)" : "telegram://...";
+        settingsForm.elements.smtp_password.placeholder = settings.smtp_password_configured ? "Configurada (dejar vacio para conservar)" : "";
+        settingsForm.elements.webhook_url.placeholder = settings.webhook_configured ? "Configurado (dejar vacio para conservar)" : "https://...";
+        settingsForm.elements.auth_password.placeholder = settings.auth_password_configured ? "Configurada (dejar vacio para conservar)" : "Minimo 8 caracteres";
+        settingsDialog.showModal();
+      }
+
+      async function saveSettings(event) {
+        event.preventDefault();
+        const numbers = new Set(["scan_interval_seconds", "offline_after_misses", "arp_timeout_seconds", "arp_retries", "arp_passes", "ping_timeout_seconds", "ping_workers", "smtp_port", "backup_interval_hours", "backup_retention", "metrics_retention_days"]);
+        const checks = new Set(["include_kernel_neighbors", "enable_ping_sweep", "telegram_enabled", "email_enabled", "smtp_tls", "mdns_enabled", "ssdp_enabled", "netbios_enabled", "webhook_enabled", "port_scan_enabled", "backup_enabled", "auth_enabled"]);
+        const payload = {};
+        [...settingsForm.elements].forEach((input) => {
+          if (!input.name) return;
+          if (checks.has(input.name)) payload[input.name] = input.checked;
+          else if (numbers.has(input.name)) payload[input.name] = Number(input.value);
+          else if (input.value) payload[input.name] = input.value;
+        });
+        const response = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) return showToast("No se pudo guardar la configuracion");
+        settingsDialog.close();
+        await loadConfig();
+        showToast("Configuracion guardada");
+      }
+
+      async function testAlerts() {
+        testAlertsButton.disabled = true;
+        try {
+          const response = await fetch("/api/alerts/test", { method: "POST" });
+          if (!response.ok) throw new Error();
+          showToast("Aviso de prueba enviado");
+        } catch (_) {
+          showToast("No se pudo enviar el aviso de prueba");
+        } finally {
+          testAlertsButton.disabled = false;
+        }
+      }
+
+      async function createBackupNow() {
+        backupButton.disabled = true;
+        try {
+          const response = await fetch("/api/backups", { method: "POST" });
+          if (!response.ok) throw new Error();
+          const backup = await response.json();
+          showToast(`Copia creada: ${backup.name}`);
+        } catch (_) {
+          showToast("No se pudo crear la copia");
+        } finally {
+          backupButton.disabled = false;
+        }
+      }
+
+      async function loadAgents() {
+        const response = await fetch("/api/agents");
+        const agents = await response.json();
+        agentRows.innerHTML = agents.length ? agents.map((agent) => `<div class="flex items-center justify-between gap-4 px-5 py-3 text-sm"><div><p class="font-medium">${escapeHtml(agent.name)}</p><p class="font-mono text-xs text-zinc-500">${escapeHtml(agent.subnet || "Sin subred")}</p></div><div class="flex items-center gap-3"><span class="text-xs text-zinc-500">${agent.last_seen ? formatDate(agent.last_seen) : "Esperando"}</span><button class="deleteAgentButton text-xs text-red-600" data-id="${agent.id}" type="button">Eliminar</button></div></div>`).join("") : '<p class="p-5 text-sm text-zinc-500">No hay agentes configurados.</p>';
+        document.querySelectorAll(".deleteAgentButton").forEach((button) => button.addEventListener("click", async (event) => {
+          await fetch(`/api/agents/${event.currentTarget.dataset.id}`, { method: "DELETE" });
+          await loadAgents();
+        }));
+      }
+
+      async function openAgents() {
+        settingsDialog.close();
+        agentToken.classList.add("hidden");
+        agentsDialog.showModal();
+        await loadAgents();
+      }
+
+      async function createAgent(event) {
+        event.preventDefault();
+        const response = await fetch("/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: agentForm.elements.name.value, subnet: agentForm.elements.subnet.value }) });
+        if (!response.ok) return showToast("No se pudo crear el agente");
+        const agent = await response.json();
+        agentToken.textContent = `Token de ${agent.name}: ${agent.token}`;
+        agentToken.classList.remove("hidden");
+        agentForm.reset();
+        await loadAgents();
+      }
+
+      async function scanNow() {
+        scanButton.disabled = true;
+        scanSpinner.classList.remove("hidden");
+        try {
+          await fetch("/api/scan", { method: "POST" });
+          await loadDevices();
+        } finally {
+          scanButton.disabled = false;
+          scanSpinner.classList.add("hidden");
+        }
+      }
+
+      themeButton.addEventListener("click", () => {
+        document.documentElement.classList.toggle("dark");
+        localStorage.setItem("theme", document.documentElement.classList.contains("dark") ? "dark" : "light");
+      });
+
+      scanButton.addEventListener("click", scanNow);
+      settingsButton.addEventListener("click", openSettings);
+      closeSettings.addEventListener("click", () => settingsDialog.close());
+      closeHistory.addEventListener("click", () => historyDialog.close());
+      closeAnalytics.addEventListener("click", () => analyticsDialog.close());
+      closeServices.addEventListener("click", () => servicesDialog.close());
+      closeAgents.addEventListener("click", () => agentsDialog.close());
+      settingsForm.addEventListener("submit", saveSettings);
+      testAlertsButton.addEventListener("click", testAlerts);
+      backupButton.addEventListener("click", createBackupNow);
+      analyticsButton.addEventListener("click", showAnalytics);
+      analyticsRange.addEventListener("change", showAnalytics);
+      agentsButton.addEventListener("click", openAgents);
+      agentForm.addEventListener("submit", createAgent);
+      searchInput.addEventListener("input", () => renderDevices(visibleDevices()));
+      statusFilter.addEventListener("change", () => renderDevices(visibleDevices()));
+      typeFilter.addEventListener("change", () => renderDevices(visibleDevices()));
+
+      document.querySelectorAll(".sortButton").forEach((button) => {
+        button.addEventListener("click", () => {
+          const field = button.dataset.sort;
+          if (sortState.field === field) {
+            sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+          } else {
+            sortState = { field, direction: field === "last_seen" ? "desc" : "asc" };
+          }
+          localStorage.setItem("deviceSort", JSON.stringify(sortState));
+          updateSortIndicators();
+          renderDevices(visibleDevices());
+        });
+      });
+
+      updateSortIndicators();
+
+      if (localStorage.getItem("theme") === "dark") {
+        document.documentElement.classList.add("dark");
+      }
+
+      loadConfig();
+      loadDevices();
+      setInterval(loadDevices, 30000);
+    </script>
+  </body>
+</html>

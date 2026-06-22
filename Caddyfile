@@ -1,0 +1,9 @@
+{
+    auto_https disable_redirects
+}
+
+https://{$WATCHMYLAN_HOST:localhost}:{$HTTPS_PORT:8443} {
+    tls internal
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:{$APP_PORT:8088}
+}
