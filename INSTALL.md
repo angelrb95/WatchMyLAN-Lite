@@ -1,34 +1,36 @@
-# Complete Installation Guide
+# Guía completa de instalación
 
-This guide installs WatchMyLAN Lite on a Linux server, including Docker, persistence, HTTPS, updates, backups and VLAN agents.
+[Español](INSTALL.md) | [English](INSTALL.en.md) | [Volver al README](README.md)
 
-## 1. Choose The Host
+Esta guía explica cómo instalar WatchMyLAN Lite en un servidor Linux con Docker, persistencia, HTTPS, actualizaciones, copias de seguridad y agentes para VLAN.
 
-Use a Linux machine connected directly to the LAN being monitored. Suitable choices include:
+## 1. Elegir el servidor
 
-- Debian or Ubuntu server.
-- A Proxmox LXC with nesting and raw-network permissions.
-- A Proxmox virtual machine.
-- A Raspberry Pi or small x86 home server.
+Utiliza un equipo Linux conectado directamente a la red que quieres supervisar. Algunas opciones adecuadas:
 
-Docker host networking is Linux-specific. Docker Desktop on Windows or macOS runs inside a VM and cannot scan the physical LAN ARP domain reliably.
+- Servidor Debian o Ubuntu.
+- Contenedor LXC de Proxmox con nesting y permisos de red raw.
+- Máquina virtual en Proxmox.
+- Raspberry Pi o pequeño servidor x86.
 
-Recommended minimum resources:
+La red host de Docker es específica de Linux. Docker Desktop en Windows o macOS se ejecuta dentro de una máquina virtual y no puede explorar de forma fiable el dominio ARP de la red física.
 
-- 1 CPU core.
-- 512 MB RAM.
-- 2 GB free disk space.
-- Static IP or DHCP reservation.
+Recursos mínimos recomendados:
 
-## 2. Install Docker On Debian/Ubuntu
+- 1 núcleo de CPU.
+- 512 MB de RAM.
+- 2 GB de espacio libre.
+- IP estática o reserva DHCP.
 
-Remove conflicting distribution packages if present:
+## 2. Instalar Docker en Debian o Ubuntu
+
+Elimina paquetes incompatibles si están instalados:
 
 ```bash
 sudo apt-get remove -y docker.io docker-compose docker-doc podman-docker containerd runc || true
 ```
 
-Install Docker from the official convenience script:
+Instala Docker:
 
 ```bash
 curl -fsSL https://get.docker.com -o get-docker.sh
@@ -37,23 +39,23 @@ rm get-docker.sh
 sudo systemctl enable --now docker
 ```
 
-Verify:
+Comprueba la instalación:
 
 ```bash
 sudo docker version
 sudo docker compose version
 ```
 
-Optional: allow the current user to manage Docker:
+Opcionalmente, permite al usuario actual administrar Docker:
 
 ```bash
 sudo usermod -aG docker "$USER"
 newgrp docker
 ```
 
-Membership in the Docker group is effectively root access.
+La pertenencia al grupo Docker equivale prácticamente a tener acceso root.
 
-## 3. Download WatchMyLAN Lite
+## 3. Descargar WatchMyLAN Lite
 
 ```bash
 sudo mkdir -p /opt/watchmylan-lite
@@ -62,14 +64,16 @@ git clone https://github.com/angelrb95/WatchMyLAN-Lite.git /opt/watchmylan-lite
 cd /opt/watchmylan-lite
 ```
 
-## 4. Create Configuration
+Si `/opt/watchmylan-lite` contiene una instalación antigua que no es un repositorio Git, haz primero una copia de `data/` y reemplaza los archivos de aplicación por un clon limpio.
+
+## 4. Crear la configuración
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-At minimum, set the LAN address of the server:
+Como mínimo, indica la dirección LAN del servidor:
 
 ```dotenv
 WATCHMYLAN_HOST=192.168.1.10
@@ -77,122 +81,122 @@ APP_PORT=8088
 HTTPS_PORT=8443
 ```
 
-Optional Telegram example:
+Ejemplo opcional de Telegram:
 
 ```dotenv
 TELEGRAM_URL=telegram://BOT_TOKEN@telegram?channels=CHAT_ID
 ```
 
-Optional SMTP example:
+Ejemplo opcional de SMTP:
 
 ```dotenv
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USERNAME=watchmylan@example.com
-SMTP_PASSWORD=CHANGE_ME
+SMTP_PASSWORD=CAMBIAR
 SMTP_FROM=watchmylan@example.com
 ALERT_EMAIL_TO=admin@example.com
 SMTP_TLS=true
 ```
 
-Protect the file:
+Protege el archivo:
 
 ```bash
 chmod 600 .env
 ```
 
-## 5. Start With Docker Compose
+## 5. Iniciar con Docker Compose
 
 ```bash
 docker compose up -d --build
 ```
 
-Check status and logs:
+Comprueba los contenedores y los registros:
 
 ```bash
 docker compose ps
 docker compose logs -f --tail=100 watchmylan-lite
 ```
 
-Open:
+Abre en el navegador:
 
 ```text
-http://SERVER_IP:8088
-https://SERVER_IP:8443
+http://IP_DEL_SERVIDOR:8088
+https://IP_DEL_SERVIDOR:8443
 ```
 
-The application starts an automatic scan immediately. A `/24` scan can take around 10-25 seconds depending on timeouts and device behavior.
+La aplicación inicia un escaneo automático al arrancar. Una red `/24` suele tardar entre 10 y 25 segundos según los tiempos de espera y el comportamiento de los dispositivos.
 
-## 6. Firewall
+## 6. Cortafuegos
 
-If a host firewall is enabled, allow the web ports only from the LAN. Example with UFW:
+Si utilizas un cortafuegos, permite los puertos web únicamente desde la LAN. Ejemplo con UFW:
 
 ```bash
 sudo ufw allow from 192.168.1.0/24 to any port 8088 proto tcp
 sudo ufw allow from 192.168.1.0/24 to any port 8443 proto tcp
 ```
 
-Do not forward these ports from the Internet-facing router.
+No redirijas estos puertos desde el router hacia Internet.
 
-## 7. HTTPS Certificate
+## 7. Certificado HTTPS
 
-Caddy creates an internal certificate for `WATCHMYLAN_HOST`. Browsers do not trust its private CA automatically.
+Caddy crea un certificado interno para `WATCHMYLAN_HOST`. Los navegadores no confían automáticamente en su autoridad privada.
 
-The root certificate is stored at:
+El certificado raíz se encuentra en:
 
 ```text
 ./caddy-data/caddy/pki/authorities/local/root.crt
 ```
 
-Copy that certificate to managed client devices and import it into the trusted root certificate store. Alternatively, keep using HTTP on a trusted isolated LAN or configure Caddy with a DNS name and a certificate trusted by your organization.
+Cópialo a los dispositivos administrados e impórtalo en el almacén de autoridades raíz de confianza. También puedes utilizar HTTP dentro de una LAN aislada o configurar Caddy con un nombre DNS y un certificado reconocido por tu organización.
 
-Changing `WATCHMYLAN_HOST` requires recreating Caddy:
+Después de cambiar `WATCHMYLAN_HOST`, recrea Caddy:
 
 ```bash
 docker compose up -d --force-recreate watchmylan-https
 ```
 
-## 8. First Configuration
+## 8. Primera configuración
 
-Open **Configuration** in the dashboard and review:
+Abre **Configuración** en el panel y revisa:
 
-1. Scan interval and offline tolerance.
-2. ARP passes and ICMP timeout.
-3. mDNS, SSDP and NetBIOS discovery.
-4. Telegram, email or webhook alerts.
-5. Backup interval and metrics retention.
-6. Optional authentication.
-7. Optional TCP service discovery.
+1. Intervalo de escaneo y tolerancia Offline.
+2. Pasadas ARP y tiempo de espera ICMP.
+3. Descubrimiento mDNS, SSDP y NetBIOS.
+4. Avisos por Telegram, correo o webhook.
+5. Intervalo de copias y retención de métricas.
+6. Autenticación opcional.
+7. Exploración TCP opcional.
 
-Authentication is disabled initially. When enabling it, set a username and a password of at least eight characters in the same save operation.
+La autenticación está desactivada inicialmente. Para activarla, guarda a la vez un nombre de usuario y una contraseña de al menos ocho caracteres.
 
-## 9. Persistence And Backups
+## 9. Persistencia y copias de seguridad
 
-Persistent directories:
+Directorios persistentes:
 
 ```text
-./data/          SQLite database and backups
-./caddy-data/    Caddy certificates
-./caddy-config/  Caddy runtime configuration
+./data/          base de datos SQLite y copias
+./caddy-data/    certificados de Caddy
+./caddy-config/  configuración interna de Caddy
 ```
 
-Create a manual backup from Configuration or copy the generated SQLite backup:
+Crea una copia manual desde **Configuración** o consulta las copias generadas:
 
 ```bash
 ls -lh data/backups/
 ```
 
-For an external backup:
+Copia externa completa:
 
 ```bash
 tar -czf watchmylan-backup-$(date +%F).tar.gz data caddy-data .env
 ```
 
-Store archives outside the Docker host. The `.env` archive contains secrets and must be encrypted/protected.
+Guarda el archivo fuera del servidor Docker. Contiene secretos de `.env` y debe protegerse o cifrarse.
 
-## 10. Updating
+## 10. Actualizar
 
-Create a backup, then:
+Crea una copia de seguridad y ejecuta:
 
 ```bash
 cd /opt/watchmylan-lite
@@ -201,23 +205,23 @@ docker compose up -d --build
 docker image prune -f
 ```
 
-Check health:
+Comprueba el servicio:
 
 ```bash
 curl -fsS http://127.0.0.1:8088/health
 ```
 
-SQLite migrations run automatically and are designed to preserve existing records.
+Las migraciones de SQLite se ejecutan automáticamente y están diseñadas para conservar los registros existentes.
 
-## 11. Uninstalling
+## 11. Desinstalar
 
-Stop containers while preserving data:
+Detén los contenedores conservando los datos:
 
 ```bash
 docker compose down
 ```
 
-Remove the application and all local data only after making a backup:
+Para eliminar también la aplicación y sus datos, crea primero una copia y después:
 
 ```bash
 docker compose down
@@ -225,9 +229,9 @@ cd /opt
 sudo rm -rf /opt/watchmylan-lite
 ```
 
-## 12. Manual Installation Without Docker
+## 12. Instalación manual sin Docker
 
-Manual installation is supported on Linux. Raw sockets require root or equivalent capabilities.
+La instalación manual es compatible con Linux. Los sockets raw requieren root o capacidades equivalentes.
 
 ```bash
 sudo apt-get update
@@ -241,36 +245,38 @@ pip install -r requirements.txt
 sudo DATA_DIR=/var/lib/watchmylan .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8088
 ```
 
-For long-term manual operation, create a dedicated systemd unit and protect the data directory. Docker Compose is the recommended deployment.
+Para uso permanente crea una unidad systemd dedicada y protege el directorio de datos. Docker Compose es el método recomendado.
 
-## 13. Proxmox Notes
+## 13. Notas para Proxmox
 
-### Virtual Machine
+### Máquina virtual
 
-A VM is the simplest option. Attach its virtual NIC to the LAN bridge and reserve a static IP. Install Docker normally inside the VM.
+Es la opción más sencilla. Conecta su interfaz virtual al bridge de la LAN, reserva una IP fija e instala Docker normalmente dentro de la máquina.
 
-### LXC
+### Contenedor LXC
 
-Docker in LXC requires nesting and may require additional permissions depending on Proxmox security settings. A privileged LXC is easier but has a larger security impact. Confirm that the container can:
+Docker dentro de LXC requiere nesting y, según la configuración de seguridad de Proxmox, permisos adicionales. Un LXC privilegiado resulta más sencillo, pero tiene un impacto de seguridad mayor.
+
+Comprueba que el LXC puede acceder a la red:
 
 ```bash
 ip link show
-ping -c 1 ROUTER_IP
+ping -c 1 IP_DEL_ROUTER
 ```
 
-The application container itself receives `NET_RAW` and `NET_ADMIN` through Compose.
+El contenedor de la aplicación recibe `NET_RAW` y `NET_ADMIN` mediante Docker Compose.
 
-## 14. VLAN And Remote Agent Installation
+## 14. VLAN y agentes remotos
 
-ARP does not cross routers. For each separated VLAN, run `agent.py` on a Linux machine connected to that VLAN.
+ARP no atraviesa routers. Ejecuta `agent.py` en un equipo Linux conectado a cada VLAN separada.
 
-On the main dashboard:
+En el panel principal:
 
-1. Open **Configuration > VLAN Agents**.
-2. Create an agent name and subnet.
-3. Store the generated token; it is shown only once.
+1. Abre **Configuración > Agentes VLAN**.
+2. Crea un agente indicando nombre y subred.
+3. Guarda el token generado; solo se muestra una vez.
 
-On the VLAN host:
+En el host de la VLAN:
 
 ```bash
 git clone https://github.com/angelrb95/WatchMyLAN-Lite.git
@@ -279,8 +285,8 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 
-export WATCHMYLAN_SERVER=http://MAIN_SERVER_IP:8088
-export WATCHMYLAN_AGENT_TOKEN=GENERATED_TOKEN
+export WATCHMYLAN_SERVER=http://IP_SERVIDOR_PRINCIPAL:8088
+export WATCHMYLAN_AGENT_TOKEN=TOKEN_GENERADO
 export WATCHMYLAN_SUBNET=192.168.20.0/24
 export WATCHMYLAN_INTERFACE=eth0
 export WATCHMYLAN_INTERVAL=120
@@ -288,52 +294,50 @@ export WATCHMYLAN_INTERVAL=120
 sudo -E .venv/bin/python agent.py
 ```
 
-Run it under systemd or a host-network Docker container for permanent operation.
+Para uso permanente, ejecútalo mediante systemd o un contenedor Docker con red host.
 
-## 15. Troubleshooting
+## 15. Resolución de problemas
 
-### No devices are discovered
+### No se descubre ningún dispositivo
 
-Confirm host networking and capabilities:
+Comprueba la red host y las capacidades:
 
 ```bash
 docker inspect watchmylan-lite --format '{{.HostConfig.NetworkMode}} {{json .HostConfig.CapAdd}}'
 ```
 
-Expected network mode: `host`.
-
-Test ARP visibility from the host:
+El modo de red esperado es `host`. Comprueba también la visibilidad ARP desde el servidor:
 
 ```bash
 ip neigh show
-ping -c 1 ROUTER_IP
+ping -c 1 IP_DEL_ROUTER
 ```
 
-### Devices incorrectly become offline
+### Algunos dispositivos aparecen Offline incorrectamente
 
-- Increase **Offline after misses**.
-- Keep the ping sweep and kernel-neighbor merge enabled.
-- Increase ARP passes for Wi-Fi/IoT devices.
-- Check VLAN isolation or wireless client isolation.
+- Aumenta **Fallos para offline**.
+- Mantén activos el barrido ping y la tabla de vecinos.
+- Aumenta las pasadas ARP para equipos Wi-Fi o IoT.
+- Revisa el aislamiento de clientes inalámbricos y las VLAN.
 
-### Names are empty
+### Los nombres de red aparecen vacíos
 
-Many home routers do not publish reverse DNS. Set a custom name in the dashboard. Keep mDNS, SSDP and NetBIOS enabled for compatible devices.
+Muchos routers domésticos no publican DNS inverso. Asigna un nombre personalizado desde el panel y mantén activos mDNS, SSDP y NetBIOS para los dispositivos compatibles.
 
-### HTTPS container restarts
+### El contenedor HTTPS se reinicia
 
-Check whether ports 80 or 8443 are occupied:
+Comprueba si los puertos 80 o 8443 están ocupados:
 
 ```bash
 sudo ss -lntup | grep -E ':80|:8443'
 docker logs watchmylan-https
 ```
 
-The supplied Caddyfile disables automatic HTTP redirects and should only bind the configured HTTPS port.
+El `Caddyfile` incluido desactiva las redirecciones HTTP automáticas y solo debe enlazar el puerto HTTPS configurado.
 
-### Permission denied from Scapy
+### Scapy muestra Permission denied
 
-Verify Compose includes:
+Comprueba que Docker Compose contiene:
 
 ```yaml
 network_mode: host
@@ -342,9 +346,9 @@ cap_add:
   - NET_ADMIN
 ```
 
-### Database recovery
+### Recuperar la base de datos
 
-Stop the application and replace the database with a known-good backup:
+Detén la aplicación y restaura una copia válida:
 
 ```bash
 docker compose stop watchmylan-lite
@@ -352,9 +356,19 @@ cp data/backups/watchmylan-YYYYMMDD-HHMMSS.db data/watchmylan.db
 docker compose start watchmylan-lite
 ```
 
-### Inspect logs
+### Consultar registros
 
 ```bash
 docker compose logs --tail=200 watchmylan-lite
 docker compose logs --tail=100 watchmylan-https
 ```
+
+## 16. Comprobación final
+
+```bash
+docker compose ps
+curl -fsS http://127.0.0.1:8088/health
+docker compose logs --since=5m watchmylan-lite
+```
+
+El contenedor debe aparecer como `Up`, `/health` debe responder correctamente y los registros no deben mostrar errores durante el arranque.

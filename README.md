@@ -1,39 +1,64 @@
 # WatchMyLAN Lite
 
-WatchMyLAN Lite is a self-hosted local network monitor built with FastAPI, Scapy and SQLite. It discovers devices using ARP and ICMP, keeps connection history, measures response time and provides a responsive web dashboard.
+[Español](README.md) | [English](README.en.md)
 
-## Highlights
+WatchMyLAN Lite es un monitor de red local autoalojado construido con FastAPI, Scapy y SQLite. Descubre dispositivos mediante ARP e ICMP, conserva el historial de conexiones, mide el tiempo de respuesta y ofrece un panel web adaptable a escritorio, tablet y móvil.
 
-- Hybrid ARP, ICMP and kernel-neighbor discovery.
-- Automatic local subnet and active interface detection.
-- mDNS, SSDP, NetBIOS and reverse-DNS name enrichment.
-- Online/offline state with configurable missed-scan tolerance.
-- IP, MAC, hostname, custom name, vendor OUI and device type.
-- Connection history, connected-since time and IP-change events.
-- Response-time metrics, uptime, availability and stability charts.
-- Persistent sorting, search, filters, favorites and CSV export.
-- Wake-on-LAN and optional TCP service discovery.
-- Alerts for new unknown devices through Telegram, email or webhook.
-- Optional HTTP Basic authentication and local HTTPS through Caddy.
-- Automatic SQLite backups with configurable retention.
-- Remote agents for VLANs or separate broadcast domains.
-- Single-page frontend with no JavaScript build step.
+![Panel de WatchMyLAN Lite en escritorio](docs/images/dashboard-desktop.png)
 
-## Stack
+## Funciones principales
 
-- Backend: Python 3.12, FastAPI, SQLModel and Scapy.
-- Database: SQLite.
-- Frontend: HTML5, Tailwind CSS CDN and vanilla JavaScript.
-- Deployment: multi-stage Docker image and Docker Compose.
-- HTTPS: Caddy with an internal certificate authority.
+- Descubrimiento híbrido mediante ARP, ICMP y la tabla de vecinos del sistema.
+- Detección automática de la interfaz activa y la subred local.
+- Enriquecimiento de nombres mediante DNS inverso, mDNS, SSDP y NetBIOS.
+- Estados Online y Offline con tolerancia configurable a escaneos fallidos.
+- IP, MAC, hostname, nombre personalizado, fabricante OUI y tipo de dispositivo.
+- Historial de conexiones, tiempo conectado y registro de cambios de IP.
+- Métricas de latencia, disponibilidad, estabilidad y tiempo de actividad.
+- Ordenación persistente, búsqueda, filtros, favoritos y exportación CSV.
+- Wake-on-LAN y exploración TCP opcional de servicios.
+- Avisos de dispositivos nuevos desconocidos por Telegram, correo o webhook.
+- Autenticación HTTP Basic opcional y HTTPS local mediante Caddy.
+- Copias de seguridad automáticas de SQLite con retención configurable.
+- Agentes remotos para VLAN o dominios de broadcast separados.
+- Frontend de una sola página sin proceso de compilación JavaScript.
 
-## Quick Start With Docker
+## Interfaz adaptable
 
-Requirements:
+En escritorio se utiliza una tabla compacta para comparar muchos dispositivos. En móvil y tablet se muestran tarjetas táctiles con IP, MAC, latencia, tiempo conectado y acciones principales sin desplazamiento horizontal.
 
-- Linux host on the network to monitor.
-- Docker Engine 24+ and Docker Compose v2.
-- Root or permission to manage Docker.
+<img src="docs/images/dashboard-mobile.png" alt="Panel móvil de WatchMyLAN Lite" width="390">
+
+> Las capturas utilizan una red de demostración. No contienen dispositivos ni direcciones reales.
+
+## Arquitectura
+
+```mermaid
+flowchart LR
+    LAN["Red local"] --> SCAN["Scapy: ARP + ICMP"]
+    SCAN --> API["FastAPI"]
+    AGENT["Agentes VLAN"] --> API
+    API --> DB["SQLite"]
+    API --> UI["Panel web"]
+    API --> ALERTS["Telegram / correo / webhook"]
+    CADDY["Caddy HTTPS"] --> API
+```
+
+## Tecnologías
+
+- Backend: Python 3.12, FastAPI, SQLModel y Scapy.
+- Base de datos: SQLite.
+- Frontend: HTML5, Tailwind CSS mediante CDN y JavaScript vanilla.
+- Despliegue: imagen Docker multietapa y Docker Compose.
+- HTTPS: Caddy con autoridad certificadora interna.
+
+## Inicio rápido con Docker
+
+Requisitos:
+
+- Servidor Linux conectado a la red que se quiere supervisar.
+- Docker Engine 24 o posterior y Docker Compose v2.
+- Usuario root o permisos para administrar Docker.
 
 ```bash
 git clone https://github.com/angelrb95/WatchMyLAN-Lite.git
@@ -41,133 +66,134 @@ cd WatchMyLAN-Lite
 cp .env.example .env
 ```
 
-Edit `.env` and set the LAN address of the Docker host:
+Edita `.env` e indica la IP del servidor Docker en la red local:
 
 ```dotenv
 WATCHMYLAN_HOST=192.168.1.10
 ```
 
-Start the application:
+Inicia la aplicación:
 
 ```bash
 docker compose up -d --build
 ```
 
-Open:
+Acceso:
 
-- HTTP: `http://SERVER_IP:8088`
-- HTTPS: `https://SERVER_IP:8443`
+- HTTP: `http://IP_DEL_SERVIDOR:8088`
+- HTTPS: `https://IP_DEL_SERVIDOR:8443`
 
-The HTTPS certificate is issued by Caddy's local CA. Browsers will warn until that CA is trusted on the client.
+El certificado HTTPS lo emite la autoridad local de Caddy. El navegador mostrará un aviso hasta que se confíe en dicha autoridad desde el dispositivo cliente.
 
-> `network_mode: host` and the `NET_RAW`/`NET_ADMIN` capabilities are required. Bridge networking cannot see the physical LAN ARP broadcast domain.
+> `network_mode: host` y las capacidades `NET_RAW` y `NET_ADMIN` son obligatorias. Una red bridge de Docker no puede acceder al dominio de broadcast ARP de la red física.
 
-See [INSTALL.md](INSTALL.md) for the complete installation, update, backup, agent and troubleshooting guide.
+Consulta la [guía completa de instalación](INSTALL.md) para Docker, Proxmox, actualizaciones, copias de seguridad, HTTPS, agentes y resolución de problemas.
 
-## Configuration
+## Configuración
 
-Most runtime options can be changed from **Configuration** without rebuilding the image. Environment variables provide initial defaults.
+La mayoría de opciones se pueden modificar desde **Configuración** sin reconstruir la imagen. Las variables de entorno proporcionan los valores iniciales.
 
-| Variable | Default | Purpose |
+| Variable | Valor inicial | Finalidad |
 | --- | --- | --- |
-| `WATCHMYLAN_HOST` | `localhost` | Hostname/IP used by local HTTPS. |
-| `APP_PORT` | `8088` | HTTP application port. |
-| `HTTPS_PORT` | `8443` | Caddy HTTPS port. |
-| `SCAN_INTERVAL_SECONDS` | `120` | Automatic scan interval. |
-| `OFFLINE_AFTER_MISSES` | `3` | Missed scans before Offline. |
-| `ARP_TIMEOUT_SECONDS` | `2` | ARP response timeout. |
-| `ARP_RETRIES` | `1` | ARP retry count. |
-| `ARP_PASSES` | `3` | ARP passes per scan. |
-| `INCLUDE_KERNEL_NEIGHBORS` | `true` | Merge the host neighbor table. |
-| `ENABLE_PING_SWEEP` | `true` | Enable concurrent ICMP discovery. |
-| `PING_TIMEOUT_SECONDS` | `1` | ICMP timeout per host. |
-| `PING_WORKERS` | `128` | Maximum requested ping concurrency. |
-| `TELEGRAM_URL` | empty | Telegram bot destination. |
-| `SMTP_*` | empty | Email alert configuration. |
+| `WATCHMYLAN_HOST` | `localhost` | IP o nombre utilizado por HTTPS local. |
+| `APP_PORT` | `8088` | Puerto HTTP de la aplicación. |
+| `HTTPS_PORT` | `8443` | Puerto HTTPS de Caddy. |
+| `SCAN_INTERVAL_SECONDS` | `120` | Intervalo de escaneo automático. |
+| `OFFLINE_AFTER_MISSES` | `3` | Escaneos fallidos antes de marcar Offline. |
+| `ARP_TIMEOUT_SECONDS` | `2` | Tiempo de espera de respuestas ARP. |
+| `ARP_RETRIES` | `1` | Reintentos ARP. |
+| `ARP_PASSES` | `3` | Pasadas ARP por escaneo. |
+| `INCLUDE_KERNEL_NEIGHBORS` | `true` | Combinar la tabla de vecinos del host. |
+| `ENABLE_PING_SWEEP` | `true` | Activar descubrimiento ICMP concurrente. |
+| `PING_TIMEOUT_SECONDS` | `1` | Tiempo de espera ICMP por host. |
+| `PING_WORKERS` | `128` | Concurrencia máxima solicitada para ping. |
+| `TELEGRAM_URL` | vacío | Destino del bot de Telegram. |
+| `SMTP_*` | vacío | Configuración de alertas por correo. |
 
-Telegram URL format:
+Formato de la URL de Telegram:
 
 ```text
 telegram://BOT_TOKEN@telegram?channels=CHAT_ID
 ```
 
-Never commit `.env`; it is intentionally ignored by Git.
+No subas nunca `.env` al repositorio. El archivo está excluido mediante `.gitignore`.
 
-## Alerts
+## Alertas
 
-Automatic alerts are sent only when a MAC address has never been seen before and is not marked as known. Reconnects and normal offline transitions do not generate alerts.
+Las alertas automáticas solo se envían cuando aparece una dirección MAC nunca vista y el dispositivo no está marcado como conocido. Las reconexiones y transiciones Offline normales no generan avisos.
 
-Supported destinations:
+Destinos disponibles:
 
-- Telegram bot.
-- SMTP email.
-- Generic JSON webhook, including Home Assistant webhooks.
+- Bot de Telegram.
+- Correo SMTP.
+- Webhook JSON genérico, incluidos webhooks de Home Assistant.
 
-## Network Discovery
+## Descubrimiento de red
 
-Each scan combines multiple sources:
+Cada escaneo combina varias fuentes:
 
-1. Broadcast ARP through Scapy.
-2. Concurrent ICMP responses and response-time measurement.
-3. Linux neighbor table before and after the sweep.
-4. Previously confirmed IP/MAC mappings when ICMP responds.
-5. Reverse DNS, mDNS, SSDP and NetBIOS names.
+1. ARP broadcast mediante Scapy.
+2. Respuestas ICMP concurrentes y medición de latencia.
+3. Tabla de vecinos Linux antes y después del barrido.
+4. Asociaciones IP/MAC confirmadas anteriormente cuando responde ICMP.
+5. DNS inverso, mDNS, SSDP y NetBIOS para resolver nombres.
 
-Additional directly reachable `/24` networks can be configured in the UI. Networks separated by routers, VLAN ACLs or different ARP domains require an agent.
+Desde la interfaz se pueden añadir otras redes `/24` alcanzables directamente. Las redes separadas por routers, ACL de VLAN o dominios ARP diferentes necesitan un agente.
 
-## Remote Agents
+## Agentes remotos
 
-Create an agent in **Configuration > VLAN Agents**. The token is shown once. On a Linux host attached to the remote segment:
+Crea un agente en **Configuración > Agentes VLAN**. El token solo se muestra una vez. En un equipo Linux conectado al segmento remoto:
 
 ```bash
-export WATCHMYLAN_SERVER=http://MAIN_SERVER_IP:8088
-export WATCHMYLAN_AGENT_TOKEN=GENERATED_TOKEN
+export WATCHMYLAN_SERVER=http://IP_SERVIDOR_PRINCIPAL:8088
+export WATCHMYLAN_AGENT_TOKEN=TOKEN_GENERADO
 export WATCHMYLAN_SUBNET=192.168.20.0/24
 export WATCHMYLAN_INTERFACE=eth0
 sudo -E python agent.py
 ```
 
-The agent performs local ARP discovery and reports results to the main server using its token.
+El agente realiza el descubrimiento ARP local y envía los resultados al servidor principal utilizando su token.
 
-## Data And Backups
+## Datos y copias de seguridad
 
-Persistent data is stored in `./data/watchmylan.db`. Docker Compose mounts `./data` into the container. Automatic and manual backups are stored under `./data/backups` and use SQLite's online backup API.
+Los datos persistentes se guardan en `./data/watchmylan.db`. Docker Compose monta `./data` dentro del contenedor. Las copias manuales y automáticas se almacenan en `./data/backups` usando la API de copia online de SQLite.
 
-The following directories must never be committed:
+No deben subirse al repositorio:
 
 - `data/`
 - `caddy-data/`
 - `caddy-config/`
+- `.env`
 
-## Security
+## Seguridad
 
-- Enable authentication from Configuration before exposing the dashboard beyond a trusted LAN.
-- Prefer HTTPS and trust the Caddy local CA on managed clients.
-- Do not publish port `8088` to the Internet.
-- Store Telegram, SMTP and webhook credentials only in `.env` or the settings database.
-- Rotate any credential accidentally shared in chat, logs or Git history.
-- TCP service discovery is disabled by default and should only be used on networks you administer.
+- Activa la autenticación antes de exponer el panel fuera de una LAN de confianza.
+- Utiliza HTTPS y confía en la CA local de Caddy en los clientes administrados.
+- No publiques el puerto `8088` en Internet.
+- Guarda las credenciales de Telegram, SMTP y webhooks solo en `.env` o en la base de datos de configuración.
+- Rota inmediatamente cualquier credencial compartida accidentalmente en chats, registros o el historial de Git.
+- La exploración TCP está desactivada inicialmente y solo debe utilizarse en redes administradas por ti.
 
-## API Overview
+## API
 
-| Endpoint | Purpose |
+| Endpoint | Finalidad |
 | --- | --- |
-| `GET /api/devices` | List devices. |
-| `PUT /api/devices/{mac}` | Edit a device. |
-| `DELETE /api/devices/{mac}` | Delete device and history. |
-| `POST /api/devices/{mac}/wake` | Send Wake-on-LAN. |
-| `GET /api/devices/{mac}/history` | Connection history. |
-| `POST /api/devices/{mac}/services` | Optional TCP service scan. |
-| `POST /api/scan` | Trigger a scan. |
-| `GET /api/analytics` | Availability and latency metrics. |
-| `GET/PUT /api/settings` | Read/update configuration. |
-| `GET/POST /api/backups` | List/create backups. |
-| `GET/POST /api/agents` | Manage VLAN agents. |
-| `GET /health` | Health check. |
+| `GET /api/devices` | Listar dispositivos. |
+| `PUT /api/devices/{mac}` | Editar un dispositivo. |
+| `DELETE /api/devices/{mac}` | Eliminar dispositivo e historial. |
+| `POST /api/devices/{mac}/wake` | Enviar Wake-on-LAN. |
+| `GET /api/devices/{mac}/history` | Consultar historial de conexión. |
+| `POST /api/devices/{mac}/services` | Escaneo TCP opcional. |
+| `POST /api/scan` | Iniciar un escaneo. |
+| `GET /api/analytics` | Métricas de disponibilidad y latencia. |
+| `GET/PUT /api/settings` | Consultar o modificar la configuración. |
+| `GET/POST /api/backups` | Listar o crear copias de seguridad. |
+| `GET/POST /api/agents` | Administrar agentes VLAN. |
+| `GET /health` | Comprobar el estado del servicio. |
 
-FastAPI OpenAPI documentation is available at `/docs`.
+La documentación OpenAPI de FastAPI está disponible en `/docs`.
 
-## Development
+## Desarrollo local
 
 ```bash
 python -m venv .venv
@@ -176,36 +202,39 @@ pip install -r requirements.txt
 sudo .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8088
 ```
 
-ARP scanning requires Linux and elevated raw-socket privileges. The frontend is served directly from `static/index.html`.
+El escaneo ARP requiere Linux y permisos para sockets raw. El frontend se sirve directamente desde `static/index.html`.
 
-## Updating
+## Actualización
 
 ```bash
 git pull --ff-only
 docker compose up -d --build
 ```
 
-Database schema upgrades are incremental and preserve existing data. Create a backup before updating.
+Las migraciones de SQLite son incrementales y conservan los datos existentes. Crea una copia de seguridad antes de actualizar.
 
-## Project Layout
+## Estructura del proyecto
 
 ```text
 .
-|-- main.py                 FastAPI, scanner and API
-|-- database.py             SQLModel models and migrations
-|-- features.py             vendors, discovery, backups and services
-|-- agent.py                remote VLAN agent
-|-- static/index.html       single-page dashboard
-|-- Dockerfile              multi-stage image
-|-- docker-compose.yml      host-network deployment
-|-- Caddyfile               local HTTPS proxy
-|-- .env.example            safe configuration template
-`-- INSTALL.md              full installation guide
+|-- main.py                 FastAPI, escáner y API
+|-- database.py             modelos SQLModel y migraciones
+|-- features.py             fabricantes, descubrimiento y copias
+|-- agent.py                agente remoto para VLAN
+|-- static/index.html       panel web de una sola página
+|-- docs/images/            capturas anonimizadas
+|-- Dockerfile              imagen multietapa
+|-- docker-compose.yml      despliegue con red host
+|-- Caddyfile               proxy HTTPS local
+|-- .env.example            plantilla de configuración segura
+|-- INSTALL.md              instalación completa en español
+|-- README.en.md            documentación principal en inglés
+`-- INSTALL.en.md           instalación completa en inglés
 ```
 
-## Notes
+## Consideraciones
 
-- Some devices intentionally block ICMP; they can still be online through ARP.
-- Randomized/private MAC addresses may not have a vendor.
-- Historical charts become more useful as automatic scans accumulate samples.
-- Deleting an online device causes it to be rediscovered during the next scan.
+- Algunos dispositivos bloquean ICMP intencionadamente, pero pueden seguir apareciendo Online mediante ARP.
+- Las direcciones MAC privadas o aleatorias pueden no tener fabricante.
+- Los gráficos históricos ganan precisión a medida que se acumulan escaneos automáticos.
+- Si eliminas un dispositivo Online, volverá a descubrirse en el siguiente escaneo.
