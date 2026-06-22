@@ -7,12 +7,14 @@ import hmac
 import io
 import ipaddress
 import json
+import math
 import os
 import re
 import secrets
 import smtplib
 import socket
 import ssl
+import statistics
 import subprocess
 import time
 from contextlib import asynccontextmanager
@@ -905,12 +907,27 @@ async def test_alerts() -> dict[str, Any]:
 def analytics(hours: int = 168, session: Session = Depends(get_session)) -> dict[str, Any]:
     hours = max(1, min(hours, 24 * 365))
     start = now_utc() - timedelta(hours=hours)
-    snapshots = session.exec(
-        select(ScanSnapshot).where(ScanSnapshot.occurred_at >= start).order_by(ScanSnapshot.occurred_at.asc()).limit(1000)
-    ).all()
+    snapshots = sorted(
+        session.exec(
+            select(ScanSnapshot).where(ScanSnapshot.occurred_at >= start).order_by(ScanSnapshot.occurred_at.desc()).limit(1000)
+        ).all(),
+        key=lambda item: aware_utc(item.occurred_at),
+    )
     devices = session.exec(select(Device)).all()
     uptime: list[dict[str, Any]] = []
     instability: list[dict[str, Any]] = []
+    event_buckets: dict[int, dict[str, int]] = {}
+    total_disconnects = 0
+    total_ip_changes = 0
+    total_new_devices = 0
+    event_bucket_seconds = max(3600, int(hours * 3600 / 120))
+
+    def percentile(values: list[float], fraction: float) -> float | None:
+        if not values:
+            return None
+        ordered = sorted(values)
+        index = min(len(ordered) - 1, max(0, math.ceil(len(ordered) * fraction) - 1))
+        return round(ordered[index], 2)
 
     for device in devices:
         events = session.exec(
@@ -946,8 +963,22 @@ def analytics(hours: int = 168, session: Session = Depends(get_session)) -> dict
         recent_events = [event for event in events if aware_utc(event.occurred_at) >= start]
         disconnects = sum(event.event_type == "offline" for event in recent_events)
         ip_changes = sum(event.event_type == "ip_changed" for event in recent_events)
+        new_devices = sum(event.event_type == "first_seen" for event in recent_events)
+        total_disconnects += disconnects
+        total_ip_changes += ip_changes
+        total_new_devices += new_devices
         if disconnects or ip_changes:
             instability.append({"mac": device.mac, "name": display_name(device), "disconnects": disconnects, "ip_changes": ip_changes})
+
+        for event in recent_events:
+            bucket = int(aware_utc(event.occurred_at).timestamp() // event_bucket_seconds * event_bucket_seconds)
+            counts = event_buckets.setdefault(bucket, {"new_devices": 0, "disconnects": 0, "ip_changes": 0})
+            if event.event_type == "first_seen":
+                counts["new_devices"] += 1
+            elif event.event_type == "offline":
+                counts["disconnects"] += 1
+            elif event.event_type == "ip_changed":
+                counts["ip_changes"] += 1
 
     metrics = session.exec(
         select(DeviceMetric)
@@ -957,9 +988,11 @@ def analytics(hours: int = 168, session: Session = Depends(get_session)) -> dict
     ).all()
     bucket_seconds = max(60, int(hours * 3600 / 240))
     buckets: dict[int, list[float]] = {}
+    metrics_by_mac: dict[str, list[float]] = {}
     for metric in metrics:
         bucket = int(aware_utc(metric.occurred_at).timestamp() // bucket_seconds * bucket_seconds)
         buckets.setdefault(bucket, []).append(metric.latency_ms)
+        metrics_by_mac.setdefault(metric.mac, []).append(metric.latency_ms)
     latency_series = []
     for bucket, values in sorted(buckets.items()):
         ordered = sorted(values)
@@ -967,30 +1000,95 @@ def analytics(hours: int = 168, session: Session = Depends(get_session)) -> dict
             {
                 "occurred_at": datetime.fromtimestamp(bucket, timezone.utc),
                 "average_ms": round(sum(values) / len(values), 2),
-                "p95_ms": round(ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))], 2),
+                "p95_ms": percentile(ordered, 0.95),
             }
         )
+
+    device_lookup = {device.mac: device for device in devices}
+    slowest_devices = []
+    for mac, values in metrics_by_mac.items():
+        device = device_lookup.get(mac)
+        if not device:
+            continue
+        slowest_devices.append(
+            {
+                "mac": mac,
+                "name": display_name(device),
+                "status": device.status,
+                "average_ms": round(statistics.fmean(values), 2),
+                "p95_ms": percentile(values, 0.95),
+                "maximum_ms": round(max(values), 2),
+                "samples": len(values),
+            }
+        )
+    slowest_devices.sort(key=lambda item: item["average_ms"], reverse=True)
+
+    first_event_bucket = int(start.timestamp() // event_bucket_seconds * event_bucket_seconds)
+    last_event_bucket = int(now_utc().timestamp() // event_bucket_seconds * event_bucket_seconds)
+    event_series = []
+    for bucket in range(first_event_bucket, last_event_bucket + 1, event_bucket_seconds):
+        counts = event_buckets.get(bucket, {"new_devices": 0, "disconnects": 0, "ip_changes": 0})
+        event_series.append({"occurred_at": datetime.fromtimestamp(bucket, timezone.utc), **counts})
+
+    device_types: dict[str, int] = {}
+    for device in devices:
+        device_type = device.device_type or "Otro"
+        device_types[device_type] = device_types.get(device_type, 0) + 1
+    type_distribution = [
+        {"type": device_type, "count": count, "percent": round(count / max(1, len(devices)) * 100, 1)}
+        for device_type, count in sorted(device_types.items(), key=lambda item: item[1], reverse=True)
+    ]
 
     current_latencies = sorted(
         device.latency_ms for device in devices if device.status == "Online" and device.latency_ms is not None
     )
     average_latency = round(sum(current_latencies) / len(current_latencies), 2) if current_latencies else None
-    p95_latency = current_latencies[min(len(current_latencies) - 1, int(len(current_latencies) * 0.95))] if current_latencies else None
+    p95_latency = percentile(current_latencies, 0.95)
+    period_latencies = [metric.latency_ms for metric in metrics]
+    period_average_latency = round(statistics.fmean(period_latencies), 2) if period_latencies else None
+    period_median_latency = round(statistics.median(period_latencies), 2) if period_latencies else None
+    period_p95_latency = percentile(period_latencies, 0.95)
+    latency_jitter = round(statistics.pstdev(period_latencies), 2) if len(period_latencies) > 1 else (0.0 if period_latencies else None)
     average_scan_ms = round(sum(item.duration_ms for item in snapshots) / len(snapshots)) if snapshots else None
+    p95_scan_ms = percentile([float(item.duration_ms) for item in snapshots], 0.95)
     availability_values = [item.online / max(1, item.online + item.offline) * 100 for item in snapshots]
+    peak_snapshot = max(snapshots, key=lambda item: item.online, default=None)
+    minimum_snapshot = min(snapshots, key=lambda item: item.online, default=None)
+    online_now = sum(device.status == "Online" for device in devices)
+    known_devices = sum(device.known for device in devices)
 
     return {
         "hours": hours,
         "snapshots": snapshots,
         "uptime": sorted(uptime, key=lambda item: item["uptime_percent"], reverse=True),
         "latency_series": latency_series,
+        "event_series": event_series,
+        "slowest_devices": slowest_devices[:20],
+        "device_types": type_distribution,
         "instability": sorted(instability, key=lambda item: (item["disconnects"], item["ip_changes"]), reverse=True),
         "summary": {
+            "total_devices": len(devices),
+            "online_now": online_now,
+            "offline_now": len(devices) - online_now,
+            "unknown_now": len(devices) - known_devices,
+            "known_percent": round(known_devices / max(1, len(devices)) * 100, 1),
             "average_latency_ms": average_latency,
             "p95_latency_ms": p95_latency,
             "fastest_latency_ms": current_latencies[0] if current_latencies else None,
             "slowest_latency_ms": current_latencies[-1] if current_latencies else None,
+            "period_average_latency_ms": period_average_latency,
+            "period_median_latency_ms": period_median_latency,
+            "period_p95_latency_ms": period_p95_latency,
+            "latency_jitter_ms": latency_jitter,
             "average_scan_ms": average_scan_ms,
+            "p95_scan_ms": p95_scan_ms,
+            "scan_count": len(snapshots),
+            "peak_online": peak_snapshot.online if peak_snapshot else None,
+            "peak_online_at": peak_snapshot.occurred_at if peak_snapshot else None,
+            "minimum_online": minimum_snapshot.online if minimum_snapshot else None,
+            "new_devices": total_new_devices,
+            "disconnects": total_disconnects,
+            "ip_changes": total_ip_changes,
             "network_availability_percent": round(sum(availability_values) / len(availability_values), 1) if availability_values else None,
             "latency_samples": len(metrics),
         },

@@ -196,12 +196,36 @@
       </header>
       <div id="historyRows" class="max-h-[65vh] divide-y divide-zinc-200 overflow-y-auto dark:divide-zinc-800"></div>
     </dialog>
-    <dialog id="analyticsDialog" class="m-auto h-[100dvh] max-h-none w-full max-w-none rounded-none border-0 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 sm:h-auto sm:max-h-[92vh] sm:w-[min(1050px,calc(100%-2rem))] sm:rounded-lg sm:border sm:border-zinc-200 dark:bg-zinc-950 dark:text-zinc-50 sm:dark:border-zinc-800">
-      <header class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"><h2 class="text-lg font-semibold">Salud y disponibilidad</h2><div class="flex items-center gap-2"><select id="analyticsRange" class="h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"><option value="24">24 horas</option><option value="168" selected>7 dias</option><option value="720">30 dias</option></select><button id="closeAnalytics" class="h-9 w-9 rounded-md border border-zinc-300 text-xl dark:border-zinc-700" type="button" aria-label="Cerrar">&times;</button></div></header>
-      <div class="max-h-[calc(100dvh-66px)] overflow-y-auto sm:max-h-[82vh]">
-        <section id="analyticsSummary" class="grid grid-cols-2 divide-x divide-zinc-200 border-b border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800 sm:grid-cols-3 lg:grid-cols-6"></section>
-        <section class="grid gap-6 border-b border-zinc-200 p-5 dark:border-zinc-800 lg:grid-cols-2"><div><h3 class="mb-3 text-sm font-semibold">Dispositivos online</h3><canvas id="availabilityChart" class="h-56 w-full"></canvas></div><div><h3 class="mb-3 text-sm font-semibold">Tiempo de respuesta</h3><canvas id="latencyChart" class="h-56 w-full"></canvas></div></section>
-        <section class="grid gap-6 p-5 lg:grid-cols-2"><div><h3 class="mb-3 text-sm font-semibold">Disponibilidad por dispositivo</h3><div id="uptimeRows" class="max-h-80 overflow-y-auto text-sm"></div></div><div><h3 class="mb-3 text-sm font-semibold">Cambios y desconexiones</h3><div id="instabilityRows" class="max-h-80 overflow-y-auto text-sm"></div></div></section>
+    <dialog id="analyticsDialog" class="m-auto h-[100dvh] max-h-none w-full max-w-none rounded-none border-0 bg-zinc-50 p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 sm:h-auto sm:max-h-[94vh] sm:w-[min(1280px,calc(100%-2rem))] sm:rounded-lg sm:border sm:border-zinc-200 dark:bg-zinc-950 dark:text-zinc-50 sm:dark:border-zinc-800">
+      <header class="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-3 sm:px-5 sm:py-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <div class="min-w-0"><h2 class="text-lg font-semibold">Estadisticas de red</h2><p id="analyticsPeriod" class="truncate text-xs text-zinc-500">Salud, rendimiento y estabilidad</p></div>
+        <div class="flex shrink-0 items-center gap-2"><select id="analyticsRange" class="h-10 rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"><option value="24">24 horas</option><option value="168" selected>7 dias</option><option value="720">30 dias</option></select><button id="closeAnalytics" class="h-10 w-10 rounded-md border border-zinc-300 text-xl dark:border-zinc-700" type="button" aria-label="Cerrar">&times;</button></div>
+      </header>
+      <div class="max-h-[calc(100dvh-65px)] overflow-y-auto p-3 sm:max-h-[calc(94vh-73px)] sm:p-5">
+        <section id="analyticsHighlights" class="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4"></section>
+        <section id="analyticsSummary" class="mt-3 grid grid-cols-2 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-4 xl:grid-cols-8"></section>
+
+        <section class="mt-4 grid gap-3 xl:grid-cols-2">
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-semibold">Dispositivos en la red</h3><div class="flex gap-3 text-[11px] text-zinc-500"><span><i class="mr-1 inline-block h-2 w-2 bg-emerald-500"></i>Online</span><span><i class="mr-1 inline-block h-2 w-2 bg-zinc-400"></i>Offline</span></div></div>
+            <canvas id="availabilityChart" class="h-52 w-full"></canvas>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-semibold">Tiempo de respuesta</h3><div class="flex gap-3 text-[11px] text-zinc-500"><span><i class="mr-1 inline-block h-2 w-2 bg-emerald-500"></i>Media</span><span><i class="mr-1 inline-block h-2 w-2 bg-amber-500"></i>P95</span></div></div>
+            <canvas id="latencyChart" class="h-52 w-full"></canvas>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 xl:col-span-2 dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-semibold">Actividad e incidencias</h3><div class="flex flex-wrap gap-3 text-[11px] text-zinc-500"><span><i class="mr-1 inline-block h-2 w-2 bg-sky-500"></i>Nuevos</span><span><i class="mr-1 inline-block h-2 w-2 bg-red-500"></i>Cortes</span><span><i class="mr-1 inline-block h-2 w-2 bg-amber-500"></i>Cambios IP</span></div></div>
+            <canvas id="activityChart" class="h-44 w-full"></canvas>
+          </div>
+        </section>
+
+        <section class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"><h3 class="mb-3 text-sm font-semibold">Disponibilidad individual</h3><div id="uptimeRows" class="max-h-80 overflow-y-auto pr-1 text-sm"></div></div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"><h3 class="mb-3 text-sm font-semibold">Dispositivos mas lentos</h3><div id="slowestRows" class="max-h-80 overflow-y-auto pr-1 text-sm"></div></div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"><h3 class="mb-3 text-sm font-semibold">Estabilidad</h3><div id="instabilityRows" class="max-h-80 overflow-y-auto pr-1 text-sm"></div></div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"><h3 class="mb-3 text-sm font-semibold">Tipos de dispositivo</h3><div id="typeRows" class="max-h-80 overflow-y-auto pr-1 text-sm"></div></div>
+        </section>
       </div>
     </dialog>
     <dialog id="servicesDialog" class="m-auto w-[min(560px,calc(100%-1rem))] rounded-lg border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 sm:w-[min(560px,calc(100%-2rem))] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
@@ -261,10 +285,15 @@
       const closeAnalytics = document.querySelector("#closeAnalytics");
       const availabilityChart = document.querySelector("#availabilityChart");
       const latencyChart = document.querySelector("#latencyChart");
+      const activityChart = document.querySelector("#activityChart");
+      const analyticsHighlights = document.querySelector("#analyticsHighlights");
       const analyticsSummary = document.querySelector("#analyticsSummary");
       const analyticsRange = document.querySelector("#analyticsRange");
+      const analyticsPeriod = document.querySelector("#analyticsPeriod");
       const uptimeRows = document.querySelector("#uptimeRows");
+      const slowestRows = document.querySelector("#slowestRows");
       const instabilityRows = document.querySelector("#instabilityRows");
+      const typeRows = document.querySelector("#typeRows");
       const servicesDialog = document.querySelector("#servicesDialog");
       const closeServices = document.querySelector("#closeServices");
       const servicesRows = document.querySelector("#servicesRows");
@@ -398,59 +427,134 @@
         servicesRows.innerHTML = result.services.length ? result.services.map((service) => `<div class="flex justify-between py-2 text-sm"><span class="font-mono">TCP ${service.port}</span><span>${escapeHtml(service.service)}</span></div>`).join("") : '<p class="text-sm text-zinc-500">No se encontraron puertos configurados abiertos.</p>';
       }
 
-      function drawLineChart(canvas, datasets) {
+      function drawLineChart(canvas, datasets, options = {}) {
         const ratio = window.devicePixelRatio || 1;
         const width = Math.max(280, canvas.clientWidth);
-        const height = 224;
+        const height = Math.max(160, canvas.clientHeight || 208);
         canvas.width = width * ratio;
         canvas.height = height * ratio;
         const context = canvas.getContext("2d");
         context.scale(ratio, ratio);
         context.clearRect(0, 0, width, height);
         const allValues = datasets.flatMap((dataset) => dataset.values).filter((value) => Number.isFinite(value));
-        const maxValue = Math.max(1, ...allValues) * 1.1;
         const gridColor = document.documentElement.classList.contains("dark") ? "#3f3f46" : "#e4e4e7";
         const textColor = document.documentElement.classList.contains("dark") ? "#a1a1aa" : "#71717a";
-        context.font = "11px sans-serif"; context.fillStyle = textColor;
+        context.font = "11px sans-serif";
+        context.fillStyle = textColor;
+        if (!allValues.length) {
+          context.textAlign = "center";
+          context.fillText("Sin datos suficientes", width / 2, height / 2);
+          return;
+        }
+        const maxValue = Math.max(1, ...allValues) * 1.1;
+        const plot = { left: 42, right: width - 10, top: 10, bottom: height - 24 };
         for (let line = 0; line <= 4; line++) {
-          const y = 12 + line * 46;
-          context.strokeStyle = gridColor; context.beginPath(); context.moveTo(38, y); context.lineTo(width - 8, y); context.stroke();
-          context.fillText(String(Math.round(maxValue * (4 - line) / 4)), 2, y + 4);
+          const y = plot.top + line * (plot.bottom - plot.top) / 4;
+          const value = maxValue * (4 - line) / 4;
+          context.strokeStyle = gridColor;
+          context.lineWidth = 1;
+          context.beginPath();
+          context.moveTo(plot.left, y);
+          context.lineTo(plot.right, y);
+          context.stroke();
+          context.textAlign = "right";
+          context.fillText(`${options.integer ? Math.round(value) : value.toFixed(value < 10 ? 1 : 0)}${options.unit || ""}`, plot.left - 6, y + 4);
         }
         datasets.forEach((dataset) => {
           if (!dataset.values.length) return;
-          context.strokeStyle = dataset.color; context.lineWidth = 2; context.beginPath();
+          context.strokeStyle = dataset.color;
+          context.lineWidth = 2;
+          context.lineJoin = "round";
+          context.lineCap = "round";
+          context.beginPath();
+          let started = false;
           dataset.values.forEach((value, index) => {
-            const x = 38 + (index / Math.max(1, dataset.values.length - 1)) * (width - 48);
-            const y = 196 - (value / maxValue) * 184;
-            index ? context.lineTo(x, y) : context.moveTo(x, y);
+            if (!Number.isFinite(value)) {
+              started = false;
+              return;
+            }
+            const x = plot.left + (index / Math.max(1, dataset.values.length - 1)) * (plot.right - plot.left);
+            const y = plot.bottom - (value / maxValue) * (plot.bottom - plot.top);
+            if (started) context.lineTo(x, y);
+            else context.moveTo(x, y);
+            started = true;
           });
           context.stroke();
         });
+        if (options.labels?.length) {
+          context.fillStyle = textColor;
+          context.textAlign = "left";
+          context.fillText(options.labels[0], plot.left, height - 6);
+          if (options.labels.length > 1) {
+            context.textAlign = "right";
+            context.fillText(options.labels[options.labels.length - 1], plot.right, height - 6);
+          }
+        }
+      }
+
+      function chartLabel(value, hours) {
+        const date = parseDate(value);
+        return new Intl.DateTimeFormat("es", hours <= 24 ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit" }).format(date);
+      }
+
+      function metricValue(value, suffix = "") {
+        return value == null ? "-" : `${value}${suffix}`;
       }
 
       async function showAnalytics() {
         if (!analyticsDialog.open) analyticsDialog.showModal();
         uptimeRows.innerHTML = '<p class="text-zinc-500">Cargando...</p>';
+        slowestRows.innerHTML = instabilityRows.innerHTML = typeRows.innerHTML = '<p class="text-zinc-500">Cargando...</p>';
         const response = await fetch(`/api/analytics?hours=${analyticsRange.value}`);
+        if (!response.ok) {
+          uptimeRows.innerHTML = '<p class="text-red-600">No se pudieron cargar las estadisticas.</p>';
+          return;
+        }
         const data = await response.json();
         const summary = data.summary;
-        const metrics = [
-          ["Disponibilidad", summary.network_availability_percent == null ? "-" : `${summary.network_availability_percent}%`],
-          ["Latencia media", summary.average_latency_ms == null ? "-" : `${summary.average_latency_ms} ms`],
-          ["Percentil 95", summary.p95_latency_ms == null ? "-" : `${summary.p95_latency_ms} ms`],
-          ["Mas rapido", summary.fastest_latency_ms == null ? "-" : `${summary.fastest_latency_ms} ms`],
-          ["Mas lento", summary.slowest_latency_ms == null ? "-" : `${summary.slowest_latency_ms} ms`],
-          ["Duracion escaneo", summary.average_scan_ms == null ? "-" : `${(summary.average_scan_ms / 1000).toFixed(1)} s`],
+        const rangeText = analyticsRange.options[analyticsRange.selectedIndex].text;
+        analyticsPeriod.textContent = `${rangeText} · ${summary.scan_count} escaneos · ${summary.latency_samples} muestras`;
+        const incidents = summary.disconnects + summary.ip_changes;
+        const highlights = [
+          { label: "Disponibilidad", value: metricValue(summary.network_availability_percent, "%"), detail: "Promedio de la red", tone: "text-emerald-700 dark:text-emerald-400" },
+          { label: "Online ahora", value: `${summary.online_now}/${summary.total_devices}`, detail: `${summary.offline_now} desconectados`, tone: "text-zinc-950 dark:text-white" },
+          { label: "Latencia P95", value: metricValue(summary.period_p95_latency_ms, " ms"), detail: `Mediana ${metricValue(summary.period_median_latency_ms, " ms")}`, tone: "text-sky-700 dark:text-sky-400" },
+          { label: "Incidencias", value: incidents, detail: `${summary.disconnects} cortes · ${summary.ip_changes} cambios IP`, tone: incidents ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400" },
         ];
-        analyticsSummary.innerHTML = metrics.map(([label, value]) => `<div class="p-4"><p class="text-xs text-zinc-500">${label}</p><p class="mt-1 text-xl font-semibold">${value}</p></div>`).join("");
-        drawLineChart(availabilityChart, [{ values: data.snapshots.map((item) => item.online), color: "#10b981" }]);
+        analyticsHighlights.innerHTML = highlights.map((item) => `<div class="rounded-lg border border-zinc-200 bg-white p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900"><p class="text-xs font-medium text-zinc-500">${item.label}</p><p class="mt-1 text-2xl font-semibold ${item.tone}">${item.value}</p><p class="mt-1 truncate text-[11px] text-zinc-500" title="${escapeHtml(item.detail)}">${item.detail}</p></div>`).join("");
+        const metrics = [
+          ["Latencia media", metricValue(summary.period_average_latency_ms, " ms")],
+          ["Variacion", metricValue(summary.latency_jitter_ms, " ms")],
+          ["Pico online", metricValue(summary.peak_online)],
+          ["Minimo online", metricValue(summary.minimum_online)],
+          ["Nuevos", summary.new_devices],
+          ["Desconocidos", summary.unknown_now],
+          ["Conocidos", metricValue(summary.known_percent, "%")],
+          ["Escaneo P95", summary.p95_scan_ms == null ? "-" : `${(summary.p95_scan_ms / 1000).toFixed(1)} s`],
+        ];
+        analyticsSummary.innerHTML = metrics.map(([label, value]) => `<div class="border-b border-r border-zinc-200 p-3 dark:border-zinc-800"><p class="text-[11px] text-zinc-500">${label}</p><p class="mt-1 text-base font-semibold">${value}</p></div>`).join("");
+        drawLineChart(availabilityChart, [
+          { values: data.snapshots.map((item) => item.online), color: "#10b981" },
+          { values: data.snapshots.map((item) => item.offline), color: "#a1a1aa" },
+        ], { integer: true, labels: data.snapshots.map((item) => chartLabel(item.occurred_at, data.hours)) });
         drawLineChart(latencyChart, [
           { values: data.latency_series.map((item) => item.average_ms), color: "#10b981" },
           { values: data.latency_series.map((item) => item.p95_ms), color: "#f59e0b" },
-        ]);
-        uptimeRows.innerHTML = data.uptime.slice(0, 40).map((item) => `<div class="mb-3"><div class="flex justify-between gap-3"><span class="truncate">${escapeHtml(item.name)}</span><span class="whitespace-nowrap"><strong>${item.uptime_percent}%</strong>${item.latency_ms == null ? "" : ` · ${item.latency_ms} ms`}</span></div><div class="mt-1 h-1.5 bg-zinc-200 dark:bg-zinc-800"><div class="h-full bg-emerald-500" style="width:${item.uptime_percent}%"></div></div></div>`).join("");
-        instabilityRows.innerHTML = data.instability.length ? data.instability.slice(0, 40).map((item) => `<div class="flex items-center justify-between border-b border-zinc-100 py-2 dark:border-zinc-800"><span class="truncate">${escapeHtml(item.name)}</span><span class="whitespace-nowrap text-xs text-zinc-500">${item.disconnects} cortes · ${item.ip_changes} cambios IP</span></div>`).join("") : '<p class="text-sm text-zinc-500">Sin cortes ni cambios de IP en este periodo.</p>';
+        ], { unit: " ms", labels: data.latency_series.map((item) => chartLabel(item.occurred_at, data.hours)) });
+        drawLineChart(activityChart, [
+          { values: data.event_series.map((item) => item.new_devices), color: "#0ea5e9" },
+          { values: data.event_series.map((item) => item.disconnects), color: "#ef4444" },
+          { values: data.event_series.map((item) => item.ip_changes), color: "#f59e0b" },
+        ], { integer: true, labels: data.event_series.map((item) => chartLabel(item.occurred_at, data.hours)) });
+
+        const uptime = [...data.uptime].sort((left, right) => left.uptime_percent - right.uptime_percent);
+        uptimeRows.innerHTML = uptime.length ? uptime.slice(0, 40).map((item) => {
+          const color = item.uptime_percent >= 99 ? "bg-emerald-500" : item.uptime_percent >= 95 ? "bg-amber-500" : "bg-red-500";
+          return `<div class="mb-3"><div class="flex justify-between gap-3"><span class="truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="whitespace-nowrap text-xs"><strong>${item.uptime_percent}%</strong>${item.latency_ms == null ? "" : ` &middot; ${item.latency_ms} ms`}</span></div><div class="mt-1 h-1.5 bg-zinc-200 dark:bg-zinc-800"><div class="h-full ${color}" style="width:${item.uptime_percent}%"></div></div></div>`;
+        }).join("") : '<p class="text-zinc-500">Sin datos de disponibilidad.</p>';
+        slowestRows.innerHTML = data.slowest_devices.length ? data.slowest_devices.map((item) => `<div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2.5 dark:border-zinc-800"><div class="min-w-0"><p class="truncate font-medium" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</p><p class="text-[11px] text-zinc-500">${item.samples} muestras · max. ${item.maximum_ms} ms</p></div><div class="shrink-0 text-right"><p class="font-mono font-semibold">${item.average_ms} ms</p><p class="text-[11px] text-zinc-500">P95 ${item.p95_ms} ms</p></div></div>`).join("") : '<p class="text-zinc-500">Sin muestras de latencia.</p>';
+        instabilityRows.innerHTML = data.instability.length ? data.instability.slice(0, 40).map((item) => `<div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2.5 dark:border-zinc-800"><span class="truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="shrink-0 whitespace-nowrap text-xs text-zinc-500"><strong class="text-red-600 dark:text-red-400">${item.disconnects}</strong> cortes · ${item.ip_changes} IP</span></div>`).join("") : '<p class="text-zinc-500">Sin cortes ni cambios de IP.</p>';
+        typeRows.innerHTML = data.device_types.length ? data.device_types.map((item) => `<div class="mb-3"><div class="flex justify-between gap-3"><span>${escapeHtml(item.type)}</span><span class="text-xs text-zinc-500">${item.count} · ${item.percent}%</span></div><div class="mt-1 h-1.5 bg-zinc-200 dark:bg-zinc-800"><div class="h-full bg-sky-500" style="width:${item.percent}%"></div></div></div>`).join("") : '<p class="text-zinc-500">Sin dispositivos registrados.</p>';
       }
 
       function sortDevices(devices) {
