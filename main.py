@@ -97,6 +97,14 @@ SECRET_SETTINGS = {"telegram_url", "smtp_password", "webhook_url", "auth_passwor
 scan_lock = asyncio.Lock()
 scanner_task: asyncio.Task[None] | None = None
 backup_task: asyncio.Task[None] | None = None
+last_scan_status: dict[str, Any] = {
+    "running": False,
+    "last_started_at": None,
+    "last_finished_at": None,
+    "last_duration_ms": None,
+    "last_found": None,
+    "last_error": "",
+}
 
 
 class SettingsUpdate(BaseModel):
@@ -143,6 +151,11 @@ class AgentCreate(BaseModel):
 
 class AgentReport(BaseModel):
     devices: list[dict[str, str]]
+
+
+class BulkKnownUpdate(BaseModel):
+    macs: list[str] = Field(default_factory=list, max_length=1000)
+    known: bool = True
 
 
 def setting(key: str) -> Any:
@@ -653,31 +666,58 @@ def send_wol(mac: str) -> None:
 
 async def run_scan() -> dict[str, Any]:
     async with scan_lock:
+        last_scan_status.update(
+            {
+                "running": True,
+                "last_started_at": now_utc().isoformat(),
+                "last_error": "",
+            }
+        )
         started = time.monotonic()
-        found_devices = await asyncio.to_thread(arp_scan_sync)
-        result = await asyncio.to_thread(persist_scan_results, found_devices)
-        await asyncio.to_thread(send_alerts, result["events"])
-        duration_ms = int((time.monotonic() - started) * 1000)
-        with Session(engine) as session:
-            devices = session.exec(select(Device)).all()
-            session.add(
-                ScanSnapshot(
-                    occurred_at=now_utc(),
-                    found=result["found"],
-                    online=sum(device.status == "Online" for device in devices),
-                    offline=sum(device.status == "Offline" for device in devices),
-                    unknown=sum(not device.known for device in devices),
-                    duration_ms=duration_ms,
+        try:
+            found_devices = await asyncio.to_thread(arp_scan_sync)
+            result = await asyncio.to_thread(persist_scan_results, found_devices)
+            await asyncio.to_thread(send_alerts, result["events"])
+            duration_ms = int((time.monotonic() - started) * 1000)
+            with Session(engine) as session:
+                devices = session.exec(select(Device)).all()
+                session.add(
+                    ScanSnapshot(
+                        occurred_at=now_utc(),
+                        found=result["found"],
+                        online=sum(device.status == "Online" for device in devices),
+                        offline=sum(device.status == "Offline" for device in devices),
+                        unknown=sum(not device.known for device in devices),
+                        duration_ms=duration_ms,
+                    )
                 )
+                session.commit()
+            finished_at = now_utc().isoformat()
+            last_scan_status.update(
+                {
+                    "running": False,
+                    "last_finished_at": finished_at,
+                    "last_duration_ms": duration_ms,
+                    "last_found": result["found"],
+                    "last_error": "",
+                }
             )
-            session.commit()
-        return {
-            "found": result["found"],
-            "events": result["events"],
-            "scanned_at": now_utc().isoformat(),
-            "offline_after_misses": setting("offline_after_misses"),
-            "duration_ms": duration_ms,
-        }
+            return {
+                "found": result["found"],
+                "events": result["events"],
+                "scanned_at": finished_at,
+                "offline_after_misses": setting("offline_after_misses"),
+                "duration_ms": duration_ms,
+            }
+        except Exception as exc:
+            last_scan_status.update(
+                {
+                    "running": False,
+                    "last_finished_at": now_utc().isoformat(),
+                    "last_error": str(exc),
+                }
+            )
+            raise
 
 
 async def scanner_loop() -> None:
@@ -819,6 +859,24 @@ def delete_device(mac: str, session: Session = Depends(get_session)) -> dict[str
     return {"status": "deleted", "mac": normalized_mac}
 
 
+@app.post("/api/devices/bulk-known")
+def bulk_update_known(payload: BulkKnownUpdate, session: Session = Depends(get_session)) -> dict[str, Any]:
+    normalized = {mac.upper() for mac in payload.macs if isinstance(mac, str)}
+    if not normalized:
+        raise HTTPException(status_code=422, detail="No devices selected")
+
+    updated = 0
+    for mac in normalized:
+        device = session.get(Device, mac)
+        if not device:
+            continue
+        device.known = payload.known
+        session.add(device)
+        updated += 1
+    session.commit()
+    return {"status": "updated", "updated": updated, "known": payload.known}
+
+
 @app.get("/api/devices/{mac}/history")
 def device_history(mac: str, session: Session = Depends(get_session)) -> list[ConnectionEvent]:
     normalized_mac = mac.upper()
@@ -851,6 +909,11 @@ def wake_device(mac: str, session: Session = Depends(get_session)) -> dict[str, 
 @app.post("/api/scan")
 async def trigger_scan() -> dict[str, Any]:
     return await run_scan()
+
+
+@app.get("/api/scan/status")
+def scan_status() -> dict[str, Any]:
+    return {**last_scan_status, "scan_interval_seconds": setting("scan_interval_seconds")}
 
 
 @app.get("/api/config")
@@ -901,6 +964,8 @@ async def test_alerts() -> dict[str, Any]:
         "title": "Aviso de prueba",
         "message": "La configuracion de avisos funciona correctamente.",
     }
+    await asyncio.to_thread(send_alerts, [event])
+    return {"status": "sent"}
 
 
 @app.get("/api/analytics")

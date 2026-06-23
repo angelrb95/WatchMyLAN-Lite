@@ -67,6 +67,31 @@
         </div>
       </section>
 
+      <section class="grid gap-3 lg:grid-cols-[1.3fr_.7fr]">
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase text-zinc-500">Salud de red</p>
+              <h2 id="healthTitle" class="mt-1 text-xl font-semibold">Calculando estado...</h2>
+              <p id="healthDetail" class="mt-1 text-sm text-zinc-500">Esperando datos del inventario.</p>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="rounded-md bg-zinc-50 px-3 py-2 dark:bg-zinc-950/60"><p class="text-[10px] uppercase text-zinc-500">Online</p><p id="healthOnline" class="font-semibold">-</p></div>
+              <div class="rounded-md bg-zinc-50 px-3 py-2 dark:bg-zinc-950/60"><p class="text-[10px] uppercase text-zinc-500">Conocidos</p><p id="healthKnown" class="font-semibold">-</p></div>
+              <div class="rounded-md bg-zinc-50 px-3 py-2 dark:bg-zinc-950/60"><p class="text-[10px] uppercase text-zinc-500">Respuesta</p><p id="healthLatency" class="font-semibold">-</p></div>
+            </div>
+          </div>
+          <div class="mt-4 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+            <div id="healthBar" class="h-full w-0 rounded-full bg-emerald-500 transition-all"></div>
+          </div>
+        </div>
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <p class="text-xs font-semibold uppercase text-zinc-500">Ultimo escaneo</p>
+          <p id="scanState" class="mt-1 text-lg font-semibold">Sin datos</p>
+          <p id="scanDetail" class="mt-1 text-sm text-zinc-500">La app se actualiza automaticamente.</p>
+        </div>
+      </section>
+
       <section class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <input id="searchInput" class="col-span-2 h-10 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-emerald-500 sm:min-w-52 dark:border-zinc-700 dark:bg-zinc-900" placeholder="Buscar por IP, MAC, nombre o notas" />
@@ -77,6 +102,8 @@
             <option value="all">Todos los tipos</option><option>Router</option><option>Camara</option><option>Servidor</option><option>Entretenimiento</option><option>Movil</option><option>Ordenador</option><option>IoT</option><option>Otro</option>
           </select>
           <button id="analyticsButton" class="col-span-2 h-10 rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 sm:col-span-1 dark:border-zinc-700 dark:hover:bg-zinc-900" type="button">Estadisticas</button>
+          <button id="knownVisibleButton" class="h-10 rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900" type="button">Marcar visibles conocidos</button>
+          <button id="autoRefreshButton" class="h-10 rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900" type="button">Pausar auto</button>
         </div>
         <p id="statusLine" class="text-sm text-zinc-500 dark:text-zinc-400"></p>
       </section>
@@ -270,7 +297,17 @@
       const statusFilter = document.querySelector("#statusFilter");
       const typeFilter = document.querySelector("#typeFilter");
       const analyticsButton = document.querySelector("#analyticsButton");
+      const knownVisibleButton = document.querySelector("#knownVisibleButton");
+      const autoRefreshButton = document.querySelector("#autoRefreshButton");
       const statusLine = document.querySelector("#statusLine");
+      const healthTitle = document.querySelector("#healthTitle");
+      const healthDetail = document.querySelector("#healthDetail");
+      const healthOnline = document.querySelector("#healthOnline");
+      const healthKnown = document.querySelector("#healthKnown");
+      const healthLatency = document.querySelector("#healthLatency");
+      const healthBar = document.querySelector("#healthBar");
+      const scanState = document.querySelector("#scanState");
+      const scanDetail = document.querySelector("#scanDetail");
       const toast = document.querySelector("#toast");
       const settingsButton = document.querySelector("#settingsButton");
       const settingsDialog = document.querySelector("#settingsDialog");
@@ -307,6 +344,8 @@
       const agentToken = document.querySelector("#agentToken");
 
       let allDevices = [];
+      let autoRefreshPaused = localStorage.getItem("autoRefreshPaused") === "true";
+      let refreshTimer = null;
       const allowedSortFields = new Set(["status", "custom_name", "ip", "last_seen"]);
       let sortState = (() => {
         try {
@@ -369,6 +408,56 @@
         toast.classList.remove("hidden");
         clearTimeout(showToast.timer);
         showToast.timer = setTimeout(() => toast.classList.add("hidden"), 3500);
+      }
+
+      function percent(part, total) {
+        return total ? Math.round((part / total) * 100) : 0;
+      }
+
+      function updateAutoRefreshButton() {
+        autoRefreshButton.textContent = autoRefreshPaused ? "Reanudar auto" : "Pausar auto";
+        autoRefreshButton.classList.toggle("border-amber-400", autoRefreshPaused);
+        autoRefreshButton.classList.toggle("text-amber-700", autoRefreshPaused);
+      }
+
+      function saveViewState() {
+        localStorage.setItem("deviceFilters", JSON.stringify({
+          search: searchInput.value,
+          status: statusFilter.value,
+          type: typeFilter.value,
+        }));
+      }
+
+      function restoreViewState() {
+        try {
+          const saved = JSON.parse(localStorage.getItem("deviceFilters"));
+          if (!saved) return;
+          searchInput.value = saved.search || "";
+          statusFilter.value = saved.status || "all";
+          typeFilter.value = saved.type || "all";
+        } catch (_) {}
+      }
+
+      function updateHealthPanel() {
+        const total = allDevices.length;
+        const online = allDevices.filter((device) => device.status === "Online").length;
+        const known = allDevices.filter((device) => device.known).length;
+        const unknown = total - known;
+        const onlinePercent = percent(online, total);
+        const knownPercent = percent(known, total);
+        const latencies = allDevices
+          .filter((device) => device.status === "Online" && Number.isFinite(Number(device.latency_ms)))
+          .map((device) => Number(device.latency_ms));
+        const avgLatency = latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : null;
+        const score = Math.max(0, Math.min(100, Math.round((onlinePercent * 0.55) + (knownPercent * 0.25) + ((avgLatency == null ? 70 : Math.max(0, 100 - avgLatency)) * 0.2))));
+
+        healthOnline.textContent = `${onlinePercent}%`;
+        healthKnown.textContent = `${knownPercent}%`;
+        healthLatency.textContent = avgLatency == null ? "-" : `${avgLatency} ms`;
+        healthBar.style.width = `${score}%`;
+        healthBar.className = `h-full rounded-full transition-all ${score >= 85 ? "bg-emerald-500" : score >= 65 ? "bg-amber-500" : "bg-red-500"}`;
+        healthTitle.textContent = score >= 85 ? "Red estable" : score >= 65 ? "Red con avisos" : "Revisar dispositivos";
+        healthDetail.textContent = `${online}/${total} online · ${unknown} desconocidos · ${latencies.length} con medida de respuesta`;
       }
 
       async function copyText(value) {
@@ -733,6 +822,7 @@
         offlineCount.textContent = allDevices.length - online;
         unknownCount.textContent = allDevices.filter((device) => !device.known).length;
         statusLine.textContent = `${visible.length} visibles de ${allDevices.length} registrados`;
+        updateHealthPanel();
         emptyState.classList.toggle("hidden", visible.length > 0);
 
         document.querySelectorAll("[data-mac][data-field]").forEach((input) => {
@@ -822,6 +912,29 @@
         allDevices = await response.json();
         renderDevices(visibleDevices());
         lastRefresh.textContent = formatDate(new Date().toISOString());
+        await loadScanStatus();
+      }
+
+      async function markVisibleKnown() {
+        const devices = visibleDevices().filter((device) => !device.known);
+        if (!devices.length) return showToast("No hay dispositivos visibles pendientes");
+        if (!window.confirm(`Marcar ${devices.length} dispositivos visibles como conocidos?`)) return;
+        knownVisibleButton.disabled = true;
+        try {
+          const response = await fetch("/api/devices/bulk-known", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ macs: devices.map((device) => device.mac), known: true }),
+          });
+          if (!response.ok) throw new Error();
+          devices.forEach((device) => { device.known = true; });
+          renderDevices(visibleDevices());
+          showToast("Dispositivos marcados como conocidos");
+        } catch (_) {
+          showToast("No se pudieron actualizar los dispositivos");
+        } finally {
+          knownVisibleButton.disabled = false;
+        }
       }
 
       async function loadConfig() {
@@ -833,6 +946,34 @@
           config.email_enabled ? "mail activo" : "mail inactivo",
         ].join(" · ");
         configLine.textContent = `Escaneo automatico cada ${minutes} min · ${alerts}`;
+      }
+
+      async function loadScanStatus() {
+        try {
+          const response = await fetch("/api/scan/status");
+          const status = await response.json();
+          if (status.running) {
+            scanState.textContent = "Escaneando ahora";
+            scanDetail.textContent = status.last_started_at ? `Inicio: ${formatDate(status.last_started_at)}` : "El motor de escaneo esta activo.";
+            return;
+          }
+          if (status.last_error) {
+            scanState.textContent = "Ultimo escaneo con error";
+            scanDetail.textContent = status.last_error;
+            return;
+          }
+          if (!status.last_finished_at) {
+            scanState.textContent = "Esperando primer escaneo";
+            scanDetail.textContent = `Intervalo configurado: ${Math.round(status.scan_interval_seconds / 60)} min`;
+            return;
+          }
+          const seconds = status.last_duration_ms == null ? "" : ` · ${(status.last_duration_ms / 1000).toFixed(1)} s`;
+          scanState.textContent = `${status.last_found ?? "-"} encontrados`;
+          scanDetail.textContent = `${formatDate(status.last_finished_at)}${seconds}`;
+        } catch (_) {
+          scanState.textContent = "Estado no disponible";
+          scanDetail.textContent = "No se pudo leer el ultimo escaneo.";
+        }
       }
 
       async function openSettings() {
@@ -934,10 +1075,18 @@
         try {
           await fetch("/api/scan", { method: "POST" });
           await loadDevices();
+          await loadScanStatus();
         } finally {
           scanButton.disabled = false;
           scanSpinner.classList.add("hidden");
         }
+      }
+
+      function scheduleRefresh() {
+        clearInterval(refreshTimer);
+        updateAutoRefreshButton();
+        if (autoRefreshPaused) return;
+        refreshTimer = setInterval(loadDevices, 30000);
       }
 
       themeButton.addEventListener("click", () => {
@@ -957,11 +1106,18 @@
       backupButton.addEventListener("click", createBackupNow);
       analyticsButton.addEventListener("click", showAnalytics);
       analyticsRange.addEventListener("change", showAnalytics);
+      knownVisibleButton.addEventListener("click", markVisibleKnown);
+      autoRefreshButton.addEventListener("click", () => {
+        autoRefreshPaused = !autoRefreshPaused;
+        localStorage.setItem("autoRefreshPaused", autoRefreshPaused ? "true" : "false");
+        scheduleRefresh();
+        showToast(autoRefreshPaused ? "Actualizacion automatica pausada" : "Actualizacion automatica reanudada");
+      });
       agentsButton.addEventListener("click", openAgents);
       agentForm.addEventListener("submit", createAgent);
-      searchInput.addEventListener("input", () => renderDevices(visibleDevices()));
-      statusFilter.addEventListener("change", () => renderDevices(visibleDevices()));
-      typeFilter.addEventListener("change", () => renderDevices(visibleDevices()));
+      searchInput.addEventListener("input", () => { saveViewState(); renderDevices(visibleDevices()); });
+      statusFilter.addEventListener("change", () => { saveViewState(); renderDevices(visibleDevices()); });
+      typeFilter.addEventListener("change", () => { saveViewState(); renderDevices(visibleDevices()); });
 
       document.querySelectorAll(".sortButton").forEach((button) => {
         button.addEventListener("click", () => {
@@ -983,9 +1139,11 @@
         document.documentElement.classList.add("dark");
       }
 
+      restoreViewState();
+      updateAutoRefreshButton();
       loadConfig();
       loadDevices();
-      setInterval(loadDevices, 30000);
+      scheduleRefresh();
     </script>
   </body>
 </html>

@@ -15,7 +15,8 @@ WatchMyLAN Lite is a self-hosted local network monitor built with FastAPI, Scapy
 - IP, MAC, hostname, custom name, vendor OUI and device type.
 - Connection history, connected-since time and IP-change events.
 - Latency statistics (average, median, P95 and variation), uptime, availability, activity, device-type and scan-performance charts.
-- Persistent sorting, search, filters, favorites and CSV export.
+- Network health panel, last-scan status, pauseable auto refresh, and bulk confirmation for known devices.
+- Persistent sorting, persistent filters, search, favorites and CSV export.
 - Wake-on-LAN and optional TCP service discovery.
 - Alerts for new unknown devices through Telegram, email or webhook.
 - Optional HTTP Basic authentication and local HTTPS through Caddy.
