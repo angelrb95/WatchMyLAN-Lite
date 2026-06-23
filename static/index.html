@@ -14,9 +14,18 @@
   <body class="min-h-screen bg-zinc-50 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-zinc-50">
     <main class="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col gap-4 px-3 py-4 sm:gap-5 sm:px-6 sm:py-6 lg:px-8">
       <header class="flex flex-col gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-tight">WatchMyLAN Lite</h1>
-          <p id="configLine" class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Monitor de dispositivos conectados a la red local</p>
+        <div class="flex min-w-0 items-center gap-3">
+          <img
+            src="/static/favicon.svg"
+            alt=""
+            class="h-12 w-12 shrink-0 rounded-xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800"
+            width="48"
+            height="48"
+          />
+          <div class="min-w-0">
+            <h1 class="truncate text-2xl font-semibold tracking-tight">WatchMyLAN Lite</h1>
+            <p id="configLine" class="mt-1 truncate text-sm text-zinc-600 dark:text-zinc-400">Monitor de dispositivos conectados a la red local</p>
+          </div>
         </div>
         <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <button
