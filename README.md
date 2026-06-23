@@ -16,11 +16,11 @@ WatchMyLAN Lite es un monitor de red local autoalojado construido con FastAPI, S
 - Historial de conexiones, tiempo conectado y registro de cambios de IP.
 - Estadísticas de latencia (media, mediana, P95 y variación), disponibilidad, estabilidad, actividad, tipos de dispositivo y rendimiento de escaneos.
 - Panel de salud de red, estado del último escaneo, pausa de refresco automático y confirmación masiva de dispositivos conocidos.
-- Ordenación persistente, búsqueda, filtros persistentes, favoritos y exportación CSV.
+- Ordenación persistente, búsqueda, filtros persistentes, filtro de atención, favoritos y exportación CSV completa o filtrada.
 - Wake-on-LAN y exploración TCP opcional de servicios.
 - Avisos de dispositivos nuevos desconocidos por Telegram, correo o webhook.
 - Autenticación HTTP Basic opcional y HTTPS local mediante Caddy.
-- Copias de seguridad automáticas de SQLite con retención configurable.
+- Copias de seguridad automáticas de SQLite con retención configurable, descarga desde la interfaz y limpieza de dispositivos offline antiguos.
 - Agentes remotos para VLAN o dominios de broadcast separados.
 - Frontend de una sola página sin proceso de compilación JavaScript.
 

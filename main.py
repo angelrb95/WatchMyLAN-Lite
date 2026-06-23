@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 
 import psutil
-from fastapi import Depends, FastAPI, HTTPException, Request as FastAPIRequest
+from fastapi import Depends, FastAPI, HTTPException, Query, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -845,6 +845,27 @@ def update_device(mac: str, payload: DeviceUpdate, session: Session = Depends(ge
     return device
 
 
+@app.delete("/api/devices/offline-stale")
+def delete_stale_offline_devices(
+    days: int = Query(default=30, ge=1, le=3650),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    cutoff = now_utc() - timedelta(days=days)
+    devices = session.exec(
+        select(Device).where(Device.status == "Offline", Device.last_seen < cutoff)
+    ).all()
+    removed: list[str] = []
+    for device in devices:
+        for event in session.exec(select(ConnectionEvent).where(ConnectionEvent.mac == device.mac)).all():
+            session.delete(event)
+        for metric in session.exec(select(DeviceMetric).where(DeviceMetric.mac == device.mac)).all():
+            session.delete(metric)
+        removed.append(device.mac)
+        session.delete(device)
+    session.commit()
+    return {"status": "deleted", "deleted": len(removed), "macs": removed}
+
+
 @app.delete("/api/devices/{mac}")
 def delete_device(mac: str, session: Session = Depends(get_session)) -> dict[str, str]:
     normalized_mac = mac.upper()
@@ -854,6 +875,9 @@ def delete_device(mac: str, session: Session = Depends(get_session)) -> dict[str
     events = session.exec(select(ConnectionEvent).where(ConnectionEvent.mac == normalized_mac)).all()
     for event in events:
         session.delete(event)
+    metrics = session.exec(select(DeviceMetric).where(DeviceMetric.mac == normalized_mac)).all()
+    for metric in metrics:
+        session.delete(metric)
     session.delete(device)
     session.commit()
     return {"status": "deleted", "mac": normalized_mac}
