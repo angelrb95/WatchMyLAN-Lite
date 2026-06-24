@@ -259,6 +259,7 @@
       <div class="max-h-[calc(100dvh-65px)] overflow-y-auto p-3 sm:max-h-[calc(94vh-73px)] sm:p-5">
         <section id="analyticsHighlights" class="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4"></section>
         <section id="analyticsSummary" class="mt-3 grid grid-cols-2 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-4 xl:grid-cols-8"></section>
+        <section id="analyticsInsights" class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"></section>
 
         <section class="mt-4 grid gap-3 xl:grid-cols-2">
           <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -294,6 +295,7 @@
       <div id="agentRows" class="max-h-72 divide-y divide-zinc-200 overflow-y-auto dark:divide-zinc-800"></div>
     </dialog>
     <div id="toast" class="fixed bottom-4 right-4 hidden max-w-sm rounded-md bg-zinc-950 px-4 py-3 text-sm text-white shadow-lg dark:bg-white dark:text-zinc-950"></div>
+    <div id="chartTooltip" class="pointer-events-none fixed z-50 hidden max-w-[260px] rounded-lg border border-zinc-200 bg-white/95 px-3 py-2 text-xs text-zinc-950 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-50"></div>
 
     <style>
       .settingInput { margin-top: .35rem; height: 2.5rem; width: 100%; border-radius: .375rem; border: 1px solid rgb(212 212 216); background: white; padding: 0 .75rem; outline: none; }
@@ -301,6 +303,7 @@
       .dark .settingInput { border-color: rgb(63 63 70); background: rgb(24 24 27); }
       summary::-webkit-details-marker { display: none; }
       dialog[open] { animation: dialog-in .16s ease-out; }
+      canvas[data-chart-ready="true"] { cursor: crosshair; touch-action: none; }
       @keyframes dialog-in { from { opacity: 0; transform: translateY(8px); } }
       @media (max-width: 640px) {
         #settingsForm fieldset { min-width: 0; }
@@ -355,6 +358,7 @@
       const activityChart = document.querySelector("#activityChart");
       const analyticsHighlights = document.querySelector("#analyticsHighlights");
       const analyticsSummary = document.querySelector("#analyticsSummary");
+      const analyticsInsights = document.querySelector("#analyticsInsights");
       const analyticsRange = document.querySelector("#analyticsRange");
       const analyticsPeriod = document.querySelector("#analyticsPeriod");
       const uptimeRows = document.querySelector("#uptimeRows");
@@ -374,10 +378,12 @@
       const agentForm = document.querySelector("#agentForm");
       const agentRows = document.querySelector("#agentRows");
       const agentToken = document.querySelector("#agentToken");
+      const chartTooltip = document.querySelector("#chartTooltip");
 
       let allDevices = [];
       let autoRefreshPaused = localStorage.getItem("autoRefreshPaused") === "true";
       let refreshTimer = null;
+      const chartStates = new WeakMap();
       const allowedSortFields = new Set(["status", "custom_name", "ip", "last_seen"]);
       let sortState = (() => {
         try {
@@ -569,6 +575,23 @@
         servicesRows.innerHTML = result.services.length ? result.services.map((service) => `<div class="flex justify-between py-2 text-sm"><span class="font-mono">TCP ${service.port}</span><span>${escapeHtml(service.service)}</span></div>`).join("") : '<p class="text-sm text-zinc-500">No se encontraron puertos configurados abiertos.</p>';
       }
 
+      function hideChartTooltip() {
+        chartTooltip.classList.add("hidden");
+      }
+
+      function placeChartTooltip(event, html) {
+        chartTooltip.innerHTML = html;
+        chartTooltip.classList.remove("hidden");
+        const margin = 12;
+        const rect = chartTooltip.getBoundingClientRect();
+        let left = event.clientX + margin;
+        let top = event.clientY + margin;
+        if (left + rect.width > window.innerWidth - margin) left = event.clientX - rect.width - margin;
+        if (top + rect.height > window.innerHeight - margin) top = event.clientY - rect.height - margin;
+        chartTooltip.style.left = `${Math.max(margin, left)}px`;
+        chartTooltip.style.top = `${Math.max(margin, top)}px`;
+      }
+
       function drawLineChart(canvas, datasets, options = {}) {
         const ratio = window.devicePixelRatio || 1;
         const width = Math.max(280, canvas.clientWidth);
@@ -586,6 +609,8 @@
         if (!allValues.length) {
           context.textAlign = "center";
           context.fillText("Sin datos suficientes", width / 2, height / 2);
+          chartStates.delete(canvas);
+          canvas.dataset.chartReady = "false";
           return;
         }
         const maxValue = Math.max(1, ...allValues) * 1.1;
@@ -602,6 +627,7 @@
           context.textAlign = "right";
           context.fillText(`${options.integer ? Math.round(value) : value.toFixed(value < 10 ? 1 : 0)}${options.unit || ""}`, plot.left - 6, y + 4);
         }
+        const pointsByDataset = [];
         datasets.forEach((dataset) => {
           if (!dataset.values.length) return;
           context.strokeStyle = dataset.color;
@@ -610,9 +636,11 @@
           context.lineCap = "round";
           context.beginPath();
           let started = false;
+          const points = [];
           dataset.values.forEach((value, index) => {
             if (!Number.isFinite(value)) {
               started = false;
+              points.push(null);
               return;
             }
             const x = plot.left + (index / Math.max(1, dataset.values.length - 1)) * (plot.right - plot.left);
@@ -620,8 +648,16 @@
             if (started) context.lineTo(x, y);
             else context.moveTo(x, y);
             started = true;
+            points.push({ x, y, value, index, dataset });
           });
           context.stroke();
+          points.filter(Boolean).forEach((point) => {
+            context.fillStyle = dataset.color;
+            context.beginPath();
+            context.arc(point.x, point.y, 2.5, 0, Math.PI * 2);
+            context.fill();
+          });
+          pointsByDataset.push(points);
         });
         if (options.labels?.length) {
           context.fillStyle = textColor;
@@ -632,11 +668,78 @@
             context.fillText(options.labels[options.labels.length - 1], plot.right, height - 6);
           }
         }
+        const maxLength = Math.max(...datasets.map((dataset) => dataset.values.length));
+        chartStates.set(canvas, { datasets, maxLength, plot, pointsByDataset, labels: options.labels || [], tooltipLabels: options.tooltipLabels || options.labels || [], title: options.title || "", unit: options.unit || "", integer: Boolean(options.integer) });
+        canvas.dataset.chartReady = "true";
+      }
+
+      function redrawChartWithHover(canvas, hoverIndex) {
+        const state = chartStates.get(canvas);
+        if (!state) return;
+        drawLineChart(canvas, state.datasets, { labels: state.labels, tooltipLabels: state.tooltipLabels, title: state.title, unit: state.unit, integer: state.integer });
+        const nextState = chartStates.get(canvas);
+        if (!nextState) return;
+        const ratio = window.devicePixelRatio || 1;
+        const width = canvas.width / ratio;
+        const height = canvas.height / ratio;
+        const context = canvas.getContext("2d");
+        const gridColor = document.documentElement.classList.contains("dark") ? "#52525b" : "#d4d4d8";
+        const x = nextState.plot.left + (hoverIndex / Math.max(1, nextState.maxLength - 1)) * (nextState.plot.right - nextState.plot.left);
+        context.strokeStyle = gridColor;
+        context.lineWidth = 1;
+        context.setLineDash([4, 4]);
+        context.beginPath();
+        context.moveTo(x, nextState.plot.top);
+        context.lineTo(x, nextState.plot.bottom);
+        context.stroke();
+        context.setLineDash([]);
+        nextState.pointsByDataset.forEach((points) => {
+          const point = points[hoverIndex];
+          if (!point) return;
+          context.fillStyle = "#fff";
+          context.strokeStyle = point.dataset.color;
+          context.lineWidth = 3;
+          context.beginPath();
+          context.arc(point.x, point.y, 5, 0, Math.PI * 2);
+          context.fill();
+          context.stroke();
+        });
+        context.clearRect(0, height - 1, width, 1);
+      }
+
+      function attachChartHover(canvas) {
+        if (canvas.dataset.hoverAttached === "true") return;
+        canvas.dataset.hoverAttached = "true";
+        canvas.addEventListener("pointermove", (event) => {
+          const state = chartStates.get(canvas);
+          if (!state) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const index = Math.max(0, Math.min(state.maxLength - 1, Math.round(((x - state.plot.left) / Math.max(1, state.plot.right - state.plot.left)) * (state.maxLength - 1))));
+          redrawChartWithHover(canvas, index);
+          const rows = state.datasets.map((dataset) => {
+            const value = dataset.values[index];
+            if (!Number.isFinite(value)) return "";
+            const formatted = state.integer ? Math.round(value) : Number(value).toFixed(value < 10 ? 1 : 0);
+            return `<div class="mt-1 flex items-center justify-between gap-4"><span class="flex items-center gap-1.5"><i class="inline-block h-2 w-2 rounded-full" style="background:${dataset.color}"></i>${escapeHtml(dataset.label || "Valor")}</span><strong class="font-mono">${formatted}${escapeHtml(state.unit)}</strong></div>`;
+          }).filter(Boolean).join("");
+          const label = state.tooltipLabels[index] || state.labels[index] || `Muestra ${index + 1}`;
+          placeChartTooltip(event, `<p class="font-semibold">${escapeHtml(state.title || "Grafica")}</p><p class="mt-0.5 text-[11px] text-zinc-500">${escapeHtml(label)}</p>${rows || '<p class="mt-1 text-zinc-500">Sin valor en este punto</p>'}`);
+        });
+        canvas.addEventListener("pointerleave", () => {
+          const state = chartStates.get(canvas);
+          if (state) drawLineChart(canvas, state.datasets, { labels: state.labels, tooltipLabels: state.tooltipLabels, title: state.title, unit: state.unit, integer: state.integer });
+          hideChartTooltip();
+        });
       }
 
       function chartLabel(value, hours) {
         const date = parseDate(value);
         return new Intl.DateTimeFormat("es", hours <= 24 ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit" }).format(date);
+      }
+
+      function chartTooltipLabel(value) {
+        return value ? new Intl.DateTimeFormat("es", { dateStyle: "short", timeStyle: "short" }).format(parseDate(value)) : "";
       }
 
       function metricValue(value, suffix = "") {
@@ -675,19 +778,30 @@
           ["Escaneo P95", summary.p95_scan_ms == null ? "-" : `${(summary.p95_scan_ms / 1000).toFixed(1)} s`],
         ];
         analyticsSummary.innerHTML = metrics.map(([label, value]) => `<div class="border-b border-r border-zinc-200 p-3 dark:border-zinc-800"><p class="text-[11px] text-zinc-500">${label}</p><p class="mt-1 text-base font-semibold">${value}</p></div>`).join("");
+        const weakestUptime = [...data.uptime].sort((left, right) => left.uptime_percent - right.uptime_percent)[0];
+        const slowestDevice = data.slowest_devices[0];
+        const peakOnlineText = summary.peak_online_at ? `${summary.peak_online} online · ${formatDate(summary.peak_online_at)}` : metricValue(summary.peak_online);
+        const insights = [
+          { label: "Peor disponibilidad", value: weakestUptime ? `${weakestUptime.uptime_percent}%` : "-", detail: weakestUptime ? weakestUptime.name : "Sin datos suficientes", tone: weakestUptime && weakestUptime.uptime_percent < 95 ? "border-red-300 dark:border-red-900" : "border-zinc-200 dark:border-zinc-800" },
+          { label: "Mas lento", value: slowestDevice ? `${slowestDevice.average_ms} ms` : "-", detail: slowestDevice ? `${slowestDevice.name} · P95 ${slowestDevice.p95_ms} ms` : "Sin muestras de latencia", tone: slowestDevice && slowestDevice.average_ms >= 150 ? "border-amber-300 dark:border-amber-900" : "border-zinc-200 dark:border-zinc-800" },
+          { label: "Actividad", value: `${summary.new_devices} nuevos`, detail: `${summary.disconnects} cortes · ${summary.ip_changes} cambios de IP`, tone: incidents ? "border-amber-300 dark:border-amber-900" : "border-zinc-200 dark:border-zinc-800" },
+          { label: "Pico de red", value: peakOnlineText, detail: `Minimo del periodo: ${metricValue(summary.minimum_online)}`, tone: "border-zinc-200 dark:border-zinc-800" },
+        ];
+        analyticsInsights.innerHTML = insights.map((item) => `<div class="rounded-lg border ${item.tone} bg-white p-3 dark:bg-zinc-900"><p class="text-[11px] font-medium uppercase text-zinc-500">${item.label}</p><p class="mt-1 truncate text-lg font-semibold" title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</p><p class="mt-1 truncate text-xs text-zinc-500" title="${escapeHtml(item.detail)}">${escapeHtml(item.detail)}</p></div>`).join("");
         drawLineChart(availabilityChart, [
-          { values: data.snapshots.map((item) => item.online), color: "#10b981" },
-          { values: data.snapshots.map((item) => item.offline), color: "#a1a1aa" },
-        ], { integer: true, labels: data.snapshots.map((item) => chartLabel(item.occurred_at, data.hours)) });
+          { label: "Online", values: data.snapshots.map((item) => item.online), color: "#10b981" },
+          { label: "Offline", values: data.snapshots.map((item) => item.offline), color: "#a1a1aa" },
+        ], { title: "Dispositivos en la red", integer: true, labels: data.snapshots.map((item) => chartLabel(item.occurred_at, data.hours)), tooltipLabels: data.snapshots.map((item) => chartTooltipLabel(item.occurred_at)) });
         drawLineChart(latencyChart, [
-          { values: data.latency_series.map((item) => item.average_ms), color: "#10b981" },
-          { values: data.latency_series.map((item) => item.p95_ms), color: "#f59e0b" },
-        ], { unit: " ms", labels: data.latency_series.map((item) => chartLabel(item.occurred_at, data.hours)) });
+          { label: "Media", values: data.latency_series.map((item) => item.average_ms), color: "#10b981" },
+          { label: "P95", values: data.latency_series.map((item) => item.p95_ms), color: "#f59e0b" },
+        ], { title: "Tiempo de respuesta", unit: " ms", labels: data.latency_series.map((item) => chartLabel(item.occurred_at, data.hours)), tooltipLabels: data.latency_series.map((item) => chartTooltipLabel(item.occurred_at)) });
         drawLineChart(activityChart, [
-          { values: data.event_series.map((item) => item.new_devices), color: "#0ea5e9" },
-          { values: data.event_series.map((item) => item.disconnects), color: "#ef4444" },
-          { values: data.event_series.map((item) => item.ip_changes), color: "#f59e0b" },
-        ], { integer: true, labels: data.event_series.map((item) => chartLabel(item.occurred_at, data.hours)) });
+          { label: "Nuevos", values: data.event_series.map((item) => item.new_devices), color: "#0ea5e9" },
+          { label: "Cortes", values: data.event_series.map((item) => item.disconnects), color: "#ef4444" },
+          { label: "Cambios IP", values: data.event_series.map((item) => item.ip_changes), color: "#f59e0b" },
+        ], { title: "Actividad e incidencias", integer: true, labels: data.event_series.map((item) => chartLabel(item.occurred_at, data.hours)), tooltipLabels: data.event_series.map((item) => chartTooltipLabel(item.occurred_at)) });
+        [availabilityChart, latencyChart, activityChart].forEach(attachChartHover);
 
         const uptime = [...data.uptime].sort((left, right) => left.uptime_percent - right.uptime_percent);
         uptimeRows.innerHTML = uptime.length ? uptime.slice(0, 40).map((item) => {
