@@ -283,6 +283,7 @@
           <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"><h3 class="mb-3 text-sm font-semibold">Tipos de dispositivo</h3><div id="typeRows" class="max-h-80 overflow-y-auto pr-1 text-sm"></div></div>
         </section>
       </div>
+      <div id="chartTooltip" class="pointer-events-none fixed z-[9999] hidden max-w-[260px] rounded-lg border border-zinc-200 bg-white/95 px-3 py-2 text-xs text-zinc-950 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-50"></div>
     </dialog>
     <dialog id="servicesDialog" class="m-auto w-[min(560px,calc(100%-1rem))] rounded-lg border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/60 sm:w-[min(560px,calc(100%-2rem))] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50">
       <header class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"><div><h2 class="text-lg font-semibold">Puertos y servicios</h2><p id="servicesDevice" class="text-sm text-zinc-500"></p></div><button id="closeServices" class="h-9 w-9 rounded-md border border-zinc-300 text-xl dark:border-zinc-700" type="button" aria-label="Cerrar">&times;</button></header>
@@ -295,7 +296,6 @@
       <div id="agentRows" class="max-h-72 divide-y divide-zinc-200 overflow-y-auto dark:divide-zinc-800"></div>
     </dialog>
     <div id="toast" class="fixed bottom-4 right-4 hidden max-w-sm rounded-md bg-zinc-950 px-4 py-3 text-sm text-white shadow-lg dark:bg-white dark:text-zinc-950"></div>
-    <div id="chartTooltip" class="pointer-events-none fixed z-50 hidden max-w-[260px] rounded-lg border border-zinc-200 bg-white/95 px-3 py-2 text-xs text-zinc-950 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-50"></div>
 
     <style>
       .settingInput { margin-top: .35rem; height: 2.5rem; width: 100%; border-radius: .375rem; border: 1px solid rgb(212 212 216); background: white; padding: 0 .75rem; outline: none; }
@@ -584,10 +584,13 @@
         chartTooltip.classList.remove("hidden");
         const margin = 12;
         const rect = chartTooltip.getBoundingClientRect();
+        const bounds = analyticsDialog.open ? analyticsDialog.getBoundingClientRect() : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
         let left = event.clientX + margin;
         let top = event.clientY + margin;
-        if (left + rect.width > window.innerWidth - margin) left = event.clientX - rect.width - margin;
-        if (top + rect.height > window.innerHeight - margin) top = event.clientY - rect.height - margin;
+        if (left + rect.width > bounds.right - margin) left = event.clientX - rect.width - margin;
+        if (top + rect.height > bounds.bottom - margin) top = event.clientY - rect.height - margin;
+        left = Math.min(Math.max(bounds.left + margin, left), bounds.right - rect.width - margin);
+        top = Math.min(Math.max(bounds.top + margin, top), bounds.bottom - rect.height - margin);
         chartTooltip.style.left = `${Math.max(margin, left)}px`;
         chartTooltip.style.top = `${Math.max(margin, top)}px`;
       }
@@ -1331,7 +1334,10 @@
       settingsButton.addEventListener("click", openSettings);
       closeSettings.addEventListener("click", () => settingsDialog.close());
       closeHistory.addEventListener("click", () => historyDialog.close());
-      closeAnalytics.addEventListener("click", () => analyticsDialog.close());
+      closeAnalytics.addEventListener("click", () => {
+        hideChartTooltip();
+        analyticsDialog.close();
+      });
       closeServices.addEventListener("click", () => servicesDialog.close());
       closeAgents.addEventListener("click", () => agentsDialog.close());
       settingsForm.addEventListener("submit", saveSettings);
